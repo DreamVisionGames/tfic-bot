@@ -82,19 +82,19 @@ function buildEventEmbed(event) {
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`rsvp-${event.id}-${role.name}`)
-        .setLabel(`${role.icon} ${role.name}`)
+        .setLabel(`${role.icon} ${role.name}`.slice(0, 80)) // Truncate the label to 80 characters
         .setStyle(ButtonStyle.Primary)
         .setDisabled(isFull)
-    );
+    );    
   }
 
   if ((event.rsvps?.filter(r => r.attending)?.length || 0) > 0) {
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`cancel-${event.id}`)
-        .setLabel('Cancel RSVP')
+        .setLabel('Cancel RSVP')  // "Cancel RSVP" is fixed, no truncation needed
         .setStyle(ButtonStyle.Danger)
-    );
+    );    
   }
 
   return { embeds: [embed], components: [row] };
@@ -155,10 +155,10 @@ async function sendCustomEventEmbed(channel, event) {
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`rsvp-${event.id}-${role.name}`)
-        .setLabel(`${role.icon} ${role.name}`)
+        .setLabel(`${role.icon} ${role.name}`.slice(0, 80))  // Truncate the label to 80 characters
         .setStyle(ButtonStyle.Primary)
         .setDisabled(isFull)
-    );
+    );    
   }
 
   const totalAttending = event.rsvps?.filter(r => r.attending)?.length || 0;
@@ -166,9 +166,9 @@ async function sendCustomEventEmbed(channel, event) {
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`cancel-${event.id}`)
-        .setLabel('Cancel RSVP')
+        .setLabel('Cancel RSVP') // "Cancel RSVP" is fixed, no truncation needed
         .setStyle(ButtonStyle.Danger)
-    );
+    );    
   }
 
   const files = [];
@@ -232,9 +232,9 @@ function advanceAndPromptNextRole(session, message, isEdit) {
     return finalizeEvent(message, session, isEdit);
   }
 
-  return message.reply(`➕ Add role **${nextRole.icon} ${nextRole.name}**? (yes/no or skip)`);
+  const roleLabel = `${nextRole.icon} ${nextRole.name}`.slice(0, 80); // Truncate the label to 80 characters
+  return message.reply(`➕ Add role **${roleLabel}**? (yes/no or skip)`);
 }
-
 
 async function finalizeEvent(message, session, isEdit) {
   const payload = {
