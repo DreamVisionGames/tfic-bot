@@ -213,7 +213,7 @@ async function sendCustomEventEmbed(channel, event) {
   try {
     console.log(`🛰️ Saving Discord message to DB: messageId=${messageId}, channelId=${channelId}`);
 
-    await axios.post(`http://localhost:5069/api/events/${event.id}/discord-message`, {
+    await axios.post(`tfic-org-website-production.up.railway.app/api/events/${event.id}/discord-message`, {
       discordMessageId: messageId,
       discordChannelId: channelId
     }, {
@@ -248,12 +248,12 @@ async function finalizeEvent(message, session, isEdit) {
 
   try {
     if (isEdit) {
-      await axios.put(`http://localhost:5069/api/events/bot/${session.eventId}`, payload, {
+      await axios.put(`tfic-org-website-production.up.railway.app/api/events/bot/${session.eventId}`, payload, {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` },
       });
       await message.reply(`✅ Event "${session.title}" updated successfully.`);
     } else {
-      const res = await axios.post('http://localhost:5069/api/Events/bot', payload, {
+      const res = await axios.post('tfic-org-website-production.up.railway.app/api/Events/bot', payload, {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` },
       });
       const createdEvent = res.data;
@@ -261,7 +261,7 @@ async function finalizeEvent(message, session, isEdit) {
       await message.reply(`✅ Event "${session.title}" created successfully.`);
       
       // ✅ Fetch full event (with roles + rsvps) before sending embed
-      const fullEventRes = await axios.get(`http://localhost:5069/api/events/public/${createdEvent.id}`, {
+      const fullEventRes = await axios.get(`tfic-org-website-production.up.railway.app/api/events/public/${createdEvent.id}`, {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` },
       });
       
@@ -558,7 +558,7 @@ client.on('messageCreate', async (message) => {
   // -------------------------
   if (message.content.toLowerCase() === '!eventlist') {
     try {
-      const res = await axios.get('http://localhost:5069/api/events', {
+      const res = await axios.get('tfic-org-website-production.up.railway.app/api/events', {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` },
       });
 
@@ -598,7 +598,7 @@ client.on('messageCreate', async (message) => {
     }
     const role = args[2] || "Attendee";
     try {
-      await axios.post('http://localhost:5069/api/events/rsvp', {
+      await axios.post('tfic-org-website-production.up.railway.app/api/events/rsvp', {
         eventId: parseInt(eventId),
         username: message.author.username,
         role: role
@@ -616,7 +616,7 @@ client.on('messageCreate', async (message) => {
   // -------------------------
   if (message.content.toLowerCase().startsWith('!eventcreate')) {
     try {
-      const res = await axios.get('http://localhost:5069/api/events/rsvp-options');
+      const res = await axios.get('tfic-org-website-production.up.railway.app/api/events/rsvp-options');
       const availableRoles = res.data;
   
       eventCreateSessions[message.author.id] = {
@@ -666,7 +666,7 @@ client.on('messageCreate', async (message) => {
         eventImageUrl: imageUrl
       };
       // Send to the bot-only endpoint using the dedicated token.
-      await axios.post('http://localhost:5069/api/Events/bot', payload, {
+      await axios.post('tfic-org-website-production.up.railway.app/api/Events/bot', payload, {
         headers: {
           Authorization: `Bearer ${BOT_API_TOKEN}`
         }
@@ -691,14 +691,14 @@ client.on('messageCreate', async (message) => {
     }
 
     try {
-      const res = await axios.get(`http://localhost:5069/api/events/${eventId}`, {
+      const res = await axios.get(`tfic-org-website-production.up.railway.app/api/events/${eventId}`, {
         headers: {
           Authorization: `Bearer ${BOT_API_TOKEN}`
         }
       });
       const event = res.data;
 
-      const rolesRes = await axios.get('http://localhost:5069/api/events/rsvp-options');
+      const rolesRes = await axios.get('tfic-org-website-production.up.railway.app/api/events/rsvp-options');
 
       eventCreateSessions[message.author.id] = {
         mode: 'edit',
@@ -786,7 +786,7 @@ client.on('messageCreate', async (message) => {
     }
   
     try {
-      const res = await axios.get(`http://localhost:5069/api/events/public/${eventId}`, {
+      const res = await axios.get(`tfic-org-website-production.up.railway.app/api/events/public/${eventId}`, {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
       });
   
@@ -843,7 +843,7 @@ client.on('interactionCreate', async (interaction) => {
     try {
       await interaction.deferReply({ ephemeral: true }); // ⏳ Reserve the reply
     
-      await axios.post('http://localhost:5069/api/events/rsvp', {
+      await axios.post('tfic-org-website-production.up.railway.app/api/events/rsvp', {
         eventId,
         username: interaction.user.username,
         discordId: interaction.user.id,
@@ -857,7 +857,7 @@ client.on('interactionCreate', async (interaction) => {
         }
       });
     
-      const updatedRes = await axios.get(`http://localhost:5069/api/events/public/${eventId}`, {
+      const updatedRes = await axios.get(`tfic-org-website-production.up.railway.app/api/events/public/${eventId}`, {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
       });
     
@@ -917,7 +917,7 @@ client.on('interactionCreate', async (interaction) => {
 
     try {
       // ⛏ Fetch event + user's current RSVP role
-      const eventRes = await axios.get(`http://localhost:5069/api/events/public/${eventId}`, {
+      const eventRes = await axios.get(`tfic-org-website-production.up.railway.app/api/events/public/${eventId}`, {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
       });
       const eventData = eventRes.data;
@@ -931,7 +931,7 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       // 🧨 Now cancel it, including the role
-      await axios.post('http://localhost:5069/api/events/rsvp', {
+      await axios.post('tfic-org-website-production.up.railway.app/api/events/rsvp', {
         eventId,
         username: interaction.user.username,
         attending: false,
@@ -950,7 +950,7 @@ client.on('interactionCreate', async (interaction) => {
       });
 
       try {
-        const updatedRes = await axios.get(`http://localhost:5069/api/events/public/${eventId}`, {
+        const updatedRes = await axios.get(`tfic-org-website-production.up.railway.app/api/events/public/${eventId}`, {
           headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
         });
         const updatedEvent = updatedRes.data;
@@ -1011,7 +1011,7 @@ app.post('/rsvp-update', async (req, res) => {
   }
 
   try {
-    const updatedRes = await axios.get(`http://localhost:5069/api/events/public/${eventId}`, {
+    const updatedRes = await axios.get(`tfic-org-website-production.up.railway.app/api/events/public/${eventId}`, {
       headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
     });
 
@@ -1034,7 +1034,7 @@ app.post('/event-create', async (req, res) => {
   if (!eventId) return res.status(400).send("Missing eventId");
 
   try {
-    const res2 = await axios.get(`http://localhost:5069/api/events/public/${eventId}`, {
+    const res2 = await axios.get(`tfic-org-website-production.up.railway.app/api/events/public/${eventId}`, {
       headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
     });
 
