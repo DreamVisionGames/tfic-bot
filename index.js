@@ -74,30 +74,49 @@ function buildEventEmbed(event) {
 
   if (event.eventImageUrl) embed.setImage(event.eventImageUrl);
 
-  const row = new ActionRowBuilder();
+  const rows = [];
+  let currentRow = new ActionRowBuilder();
+
   for (const role of event.roles || []) {
     const current = event.rsvps?.filter(r => r.role === role.name && r.attending).length || 0;
     const isFull = current >= role.capacity;
 
-    row.addComponents(
+    if (currentRow.components.length >= 5) {
+      rows.push(currentRow);
+      currentRow = new ActionRowBuilder();
+    }
+
+    currentRow.addComponents(
       new ButtonBuilder()
         .setCustomId(`rsvp-${event.id}-${role.name}`)
-        .setLabel(`${role.icon} ${role.name}`.slice(0, 80)) // Truncate the label to 80 characters
+        .setLabel(`${role.icon || ''} ${role.name || ''}`.trim())
         .setStyle(ButtonStyle.Primary)
         .setDisabled(isFull)
-    );    
+    );
   }
 
+  // Add Cancel RSVP button if needed
   if ((event.rsvps?.filter(r => r.attending)?.length || 0) > 0) {
-    row.addComponents(
+    if (currentRow.components.length >= 5) {
+      rows.push(currentRow);
+      currentRow = new ActionRowBuilder();
+    }
+
+    currentRow.addComponents(
       new ButtonBuilder()
         .setCustomId(`cancel-${event.id}`)
-        .setLabel('Cancel RSVP')  // "Cancel RSVP" is fixed, no truncation needed
+        .setLabel('Cancel RSVP')
         .setStyle(ButtonStyle.Danger)
-    );    
+    );
   }
 
-  return { embeds: [embed], components: [row] };
+  // Push the last row if it has buttons
+  if (currentRow.components.length > 0) {
+    rows.push(currentRow);
+  }
+
+  return { embeds: [embed], components: rows };
+
 }
 
 
