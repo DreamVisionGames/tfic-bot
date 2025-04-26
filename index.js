@@ -166,29 +166,47 @@ async function sendCustomEventEmbed(channel, event) {
       }
     );
 
-  const row = new ActionRowBuilder();
-  for (const role of event.roles || []) {
-    const current = event.rsvps?.filter(r => r.role === role.name && r.attending).length || 0;
-    const isFull = current >= role.capacity;
-
-    row.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`rsvp-${event.id}-${role.name}`)
-        .setLabel(`${role.icon} ${role.name}`.slice(0, 80))  // Truncate the label to 80 characters
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(isFull)
-    );    
-  }
-
-  const totalAttending = event.rsvps?.filter(r => r.attending)?.length || 0;
-  if (totalAttending > 0) {
-    row.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`cancel-${event.id}`)
-        .setLabel('Cancel RSVP') // "Cancel RSVP" is fixed, no truncation needed
-        .setStyle(ButtonStyle.Danger)
-    );    
-  }
+    const rows = [];
+    let currentRow = new ActionRowBuilder();
+    
+    for (const role of event.roles || []) {
+      const current = event.rsvps?.filter(r => r.role === role.name && r.attending).length || 0;
+      const isFull = current >= role.capacity;
+    
+      if (currentRow.components.length >= 5) {
+        rows.push(currentRow);
+        currentRow = new ActionRowBuilder();
+      }
+    
+      currentRow.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`rsvp-${event.id}-${role.name}`)
+          .setLabel(`${role.icon || ''} ${role.name || ''}`.trim().slice(0, 80))
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(isFull)
+      );
+    }
+    
+    // Add Cancel RSVP button if needed
+    if ((event.rsvps?.filter(r => r.attending)?.length || 0) > 0) {
+      if (currentRow.components.length >= 5) {
+        rows.push(currentRow);
+        currentRow = new ActionRowBuilder();
+      }
+    
+      currentRow.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`cancel-${event.id}`)
+          .setLabel('Cancel RSVP')
+          .setStyle(ButtonStyle.Danger)
+      );
+    }
+    
+    // Push the last row if it has buttons
+    if (currentRow.components.length > 0) {
+      rows.push(currentRow);
+    }
+    
 
   const files = [];
   if (event.eventImageUrl?.startsWith('http://localhost')) {
@@ -208,9 +226,9 @@ async function sendCustomEventEmbed(channel, event) {
 
   const message = await channel.send({
     embeds: [embed],
-    components: [row],
+    components: rows,
     files
-  });
+  });  
 
   const channelId = message.channel.id;
   const messageId = message.id;
