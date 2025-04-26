@@ -1042,6 +1042,8 @@ client.on('interactionCreate', async (interaction) => {
 app.post('/rsvp-update', async (req, res) => {
   const { eventId, channelId, messageId } = req.body;
 
+  console.log(`🌐 [Webhook] RSVP update received for eventId=${eventId}, channelId=${channelId}, messageId=${messageId}`);
+
   if (!eventId || !channelId || !messageId) {
     console.warn('❌ Missing data in RSVP update webhook');
     return res.status(400).send('Missing data');
@@ -1053,19 +1055,31 @@ app.post('/rsvp-update', async (req, res) => {
     });
 
     const updatedEvent = updatedRes.data;
-    const channel = await client.channels.fetch(channelId);
-    const message = await channel.messages.fetch(messageId);
+
+    console.log(`📦 [Webhook] Event fetched from API:`, updatedEvent.title);
+
+    const channel = await client.channels.fetch(channelId).catch((e) => {
+      console.error(`❌ [Webhook] Failed to fetch channel ${channelId}:`, e.message || e);
+      throw e;
+    });
+
+    const message = await channel.messages.fetch(messageId).catch((e) => {
+      console.error(`❌ [Webhook] Failed to fetch message ${messageId}:`, e.message || e);
+      throw e;
+    });
 
     const { embeds, components } = buildEventEmbed(updatedEvent);
+
     await message.edit({ embeds, components });
 
-    console.log(`✅ Event ${eventId} embed updated via webhook`);
+    console.log(`✅ [Webhook] Event ${eventId} embed updated via webhook`);
     res.sendStatus(200);
   } catch (err) {
-    console.error('❌ Failed to update message from webhook:', err.message || err);
+    console.error('❌ [Webhook] Failed to update message from webhook:', err.message || err);
     res.status(500).send('Failed to update');
   }
 });
+
 app.post('/event-create', async (req, res) => {
   const { eventId } = req.body;
   if (!eventId) return res.status(400).send("Missing eventId");
