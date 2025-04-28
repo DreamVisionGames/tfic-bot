@@ -455,7 +455,6 @@ client.on('messageCreate', async (message) => {
           "Type the number corresponding to your timezone:"
         );        
         break;
-    3
       case 'timezone-start':
         const tzStart = parseInt(message.content);
         if (!TIMEZONES[tzStart]) {
@@ -845,8 +844,7 @@ client.on('messageCreate', async (message) => {
         fullEvent
       });
   
-      // 👇 TEMP: FORCE CHANNEL ID FIX HERE
-      const forcedChannelId = '1298331987584483500'; // 👈 this is the correct parent channel
+     
       const channel = await client.channels.fetch(forcedChannelId);
       const msg = await channel.messages.fetch(String(messageId));
   
@@ -1123,6 +1121,63 @@ app.post('/event-create', async (req, res) => {
       stack: err?.stack
     });
     res.status(500).send("Failed");
+  }
+});
+
+// Webhook: Update existing event
+app.post('/event-update', async (req, res) => {
+  const { eventId, channelId, messageId } = req.body;
+
+  console.log(`🌐 [Webhook] Event update received for eventId=${eventId}`);
+
+  if (!eventId || !channelId || !messageId) {
+    console.warn('❌ Missing data in event-update webhook');
+    return res.status(400).send('Missing data');
+  }
+
+  try {
+    const updatedRes = await axios.get(`/api/events/public/${eventId}`, {
+      headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
+    });
+
+    const updatedEvent = updatedRes.data;
+
+    const channel = await client.channels.fetch(channelId);
+    const message = await channel.messages.fetch(messageId);
+
+    const { embeds, components } = buildEventEmbed(updatedEvent);
+
+    await message.edit({ embeds, components });
+
+    console.log(`✅ [Webhook] Event ${eventId} embed updated on Discord`);
+    res.sendStatus(200);
+  } catch (err) {
+    console.error('❌ [Webhook] Failed to update event via webhook:', err?.message || err);
+    res.status(500).send('Failed to update event message');
+  }
+});
+
+
+// Webhook to delete event message
+app.post('/event-delete', async (req, res) => {
+  const { channelId, messageId } = req.body;
+  
+  if (!channelId || !messageId) {
+    console.warn('❌ Missing channelId or messageId in event-delete webhook');
+    return res.status(400).send('Missing data');
+  }
+
+  try {
+    const channel = await client.channels.fetch(channelId);
+    const message = await channel.messages.fetch(messageId);
+    
+    await message.delete();
+
+    console.log(`✅ Deleted Discord message ${messageId} from channel ${channelId}`);
+    res.sendStatus(200);
+  } catch (err) {
+    console.error('❌ Failed to delete Discord message via webhook:', err.message || err);
+    res.status(500).send('Failed to delete message');
   }
 });
 
