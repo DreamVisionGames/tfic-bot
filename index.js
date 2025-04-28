@@ -337,6 +337,13 @@ async function finalizeEvent(message, session, isEdit) {
 
   delete eventCreateSessions[message.author.id];
 }
+function promptNextAvailableRole(message, session) {
+  const roleOptions = session.availableRoles.map((r, index) => `${index + 1}. ${r.icon} ${r.name}`).join('\n');
+  const menu =
+    `🎯 **Pick a role to add:**\n\n${roleOptions}\n${session.availableRoles.length + 1}. 🚫 Continue without adding more roles\n\nType the number of the role you want to add.`;
+
+  message.reply(menu);
+}
 
 // Global conversation sessions for interactive event creation.
 // In production, you might want a more robust/persistent solution.
@@ -387,7 +394,7 @@ client.on('messageCreate', async (message) => {
         session.stage = 'edit-start';
         message.reply(`Enter a new **start time** (YYYY-MM-DDTHH:MM) or type "skip":`);
         break;
-
+    
       case 'edit-start':
         if (message.content.toLowerCase() !== 'skip') {
           session.start = message.content;
@@ -395,7 +402,7 @@ client.on('messageCreate', async (message) => {
         session.stage = 'edit-end';
         message.reply(`Enter a new **end time** (YYYY-MM-DDTHH:MM) or type "skip":`);
         break;
-
+    
       case 'edit-end':
         if (message.content.toLowerCase() !== 'skip') {
           session.end = message.content;
@@ -403,7 +410,7 @@ client.on('messageCreate', async (message) => {
         session.stage = 'edit-description';
         message.reply(`Enter a new **description**, or type "skip":`);
         break;
-
+    
       case 'edit-description':
         if (message.content.toLowerCase() !== 'skip') {
           session.description = message.content;
@@ -411,7 +418,7 @@ client.on('messageCreate', async (message) => {
         session.stage = 'edit-image';
         message.reply(`Upload a new image or type an **image URL**, or "skip" to leave unchanged:`);
         break;
-
+    
       case 'edit-image':
         if (message.attachments.size > 0) {
           const image = message.attachments.find(a => a.contentType?.startsWith('image/'));
@@ -419,247 +426,154 @@ client.on('messageCreate', async (message) => {
         } else if (message.content.toLowerCase() !== 'skip') {
           session.imageUrl = message.content;
         }
-      
-        session.stage = 6;
-        session.currentRoleIndex = 0;
-      
-        if (!isEdit) {
-          const firstRole = getNextAvailableRole(session);
-          if (!firstRole) {
-            session.stage = 7;
-            await finalizeEvent(message, session, isEdit);
-            return;
-          }
-          message.reply(`📌 RSVP Role Setup\nInclude role **${firstRole.icon} ${firstRole.name}**? (yes/no or skip)`);
-        } else {
-          session.roleEditMode = 'reviewing-existing';
-          session.reviewIndex = 0;
-      
-          const firstReviewRole = session.roles[session.reviewIndex];
-          if (!firstReviewRole) {
-            session.roleEditMode = 'adding-new';
-            const role = getNextAvailableRole(session);
-            if (!role) {
-              session.stage = 7;
-              await finalizeEvent(message, session, isEdit);
-              return;
-            }
-            message.reply(`➕ Add new role **${role.icon} ${role.name}**? (yes/no or skip)`);
-          } else {
-            message.reply(`Keep role **${firstReviewRole.icon} ${firstReviewRole.name}**? (yes/no/skip)`);
-            // Do NOT increment reviewIndex here. Wait for user response
-          }          
-        }
-      
+        session.stage = 'select-role';
+        promptNextAvailableRole(message, session);
         break;
-        case 1:
-          session.title = message.content;
-          session.stage = 'timezone-start';
-          message.reply(
-            "🕓 What timezone is the **start time** in?\n" +
-            "**1** = Eastern (New York)\n" +
-            "**2** = Central (Chicago)\n" +
-            "**3** = Mountain (Denver)\n" +
-            "**4** = Pacific (Los Angeles)\n" +
-            "**5** = UTC\n" +
-            "**6** = UK (London)\n" +
-            "**7** = Central Europe (Paris)\n" +
-            "**8** = Australia (Sydney)\n" +
-            "\nType the number corresponding to your timezone:"
-          );
-          break;
-        
-        case 'timezone-start':
-          const tzNumber = parseInt(message.content);
-          if (!TIMEZONES[tzNumber]) {
-            message.reply('❌ Invalid timezone number. Please type a number from 1 to 8.');
-            return;
+    
+      case 1: // New Event: Collect Title
+        session.title = message.content;
+        session.stage = 'timezone-start';
+        message.reply(
+          "🕓 What timezone is the **start time** in?\n" +
+          "**1** = Eastern (New York)\n" +
+          "**2** = Central (Chicago)\n" +
+          "**3** = Mountain (Denver)\n" +
+          "**4** = Pacific (Los Angeles)\n" +
+          "**5** = UTC\n" +
+          "**6** = UK (London)\n" +
+          "**7** = Central Europe (Paris)\n" +
+          "**8** = Australia (Sydney)\n\n" +
+          "Type the number corresponding to your timezone:"
+        );
+        break;
+    
+      case 'timezone-start':
+        const tzStart = parseInt(message.content);
+        if (!TIMEZONES[tzStart]) {
+          return message.reply('❌ Invalid timezone number. Please pick from 1 to 8.');
+        }
+        session.startTimezone = TIMEZONES[tzStart];
+        session.stage = 'input-start-time';
+        message.reply('📝 Now type the **start time** (example: "Sunday June 5th 2:30pm")');
+        break;
+    
+      case 'input-start-time':
+        const parsedStart = parseUserTime(message.content, session.startTimezone);
+        if (!parsedStart) {
+          return message.reply('❌ Could not parse that time. Try again like: "Sunday June 5th 2:30pm"');
+        }
+        session.start = parsedStart;
+        session.stage = 'timezone-end';
+        message.reply(
+          "🕓 What timezone is the **end time** in?\n" +
+          "**1** = Eastern (New York)\n" +
+          "**2** = Central (Chicago)\n" +
+          "**3** = Mountain (Denver)\n" +
+          "**4** = Pacific (Los Angeles)\n" +
+          "**5** = UTC\n" +
+          "**6** = UK (London)\n" +
+          "**7** = Central Europe (Paris)\n" +
+          "**8** = Australia (Sydney)\n\n" +
+          "Type the number corresponding to your timezone:"
+        );
+        break;
+    
+      case 'timezone-end':
+        const tzEnd = parseInt(message.content);
+        if (!TIMEZONES[tzEnd]) {
+          return message.reply('❌ Invalid timezone number. Please pick from 1 to 8.');
+        }
+        session.endTimezone = TIMEZONES[tzEnd];
+        session.stage = 'input-end-time';
+        message.reply('📝 Now type the **end time** (example: "Sunday June 5th 5:00pm")');
+        break;
+    
+      case 'input-end-time':
+        const parsedEnd = parseUserTime(message.content, session.endTimezone);
+        if (!parsedEnd) {
+          return message.reply('❌ Could not parse that time. Try again like: "Sunday June 5th 5:00pm"');
+        }
+        session.end = parsedEnd;
+        session.stage = 4;
+        message.reply('Please provide a **description** for the event.');
+        break;
+    
+      case 4: // Description
+        session.description = message.content;
+        session.stage = 5;
+        message.reply('Now, either drag and drop an image into your message or type an **image URL**, or type "skip" if no image is needed.');
+        break;
+    
+      case 5: // Image Upload
+        if (message.attachments.size > 0) {
+          const image = message.attachments.find(a => a.contentType?.startsWith('image/'));
+          session.imageUrl = image?.url || null;
+        } else if (message.content.toLowerCase() !== 'skip') {
+          session.imageUrl = message.content;
+        }
+        session.stage = 'select-role';
+        promptNextAvailableRole(message, session);
+        break;
+    
+      case 'select-role': // ⭐⭐ New Role Menu
+        const selection = parseInt(message.content.trim());
+    
+        if (isNaN(selection) || selection < 1 || selection > session.availableRoles.length + 1) {
+          return message.reply('❌ Invalid selection. Please pick a valid number.');
+        }
+    
+        if (selection === session.availableRoles.length + 1) {
+          if (session.roles.length === 0) {
+            return message.reply('⚠️ You must add at least one role before continuing.');
           }
-          session.startTimezone = TIMEZONES[tzNumber];
-          session.stage = 'input-start-time';
-          message.reply('📝 Now type the **start time** (example: "Sunday June 5th 2:30pm")');
-          break;
-        
-        case 'input-start-time':
-          const parsedStart = parseUserTime(message.content, session.startTimezone);
-          if (!parsedStart) {
-            message.reply('❌ Could not parse that time. Try again like: "Sunday June 5th 2:30pm"');
-            return;
-          }
-          session.start = parsedStart;
-          session.stage = 'timezone-end';
-          message.reply(
-            "🕓 What timezone is the **end time** in?\n" +
-            "**1** = Eastern (New York)\n" +
-            "**2** = Central (Chicago)\n" +
-            "**3** = Mountain (Denver)\n" +
-            "**4** = Pacific (Los Angeles)\n" +
-            "**5** = UTC\n" +
-            "**6** = UK (London)\n" +
-            "**7** = Central Europe (Paris)\n" +
-            "**8** = Australia (Sydney)\n" +
-            "\nType the number corresponding to your timezone:"
-          );
-          break;
-        
-        case 'timezone-end':
-          const endTzNumber = parseInt(message.content);
-          if (!TIMEZONES[endTzNumber]) {
-            message.reply('❌ Invalid timezone number. Please type a number from 1 to 8.');
-            return;
-          }
-          session.endTimezone = TIMEZONES[endTzNumber];
-          session.stage = 'input-end-time';
-          message.reply('📝 Now type the **end time** (example: "Sunday June 5th 5:00pm")');
-          break;
-        
-        case 'input-end-time':
-          const parsedEnd = parseUserTime(message.content, session.endTimezone);
-          if (!parsedEnd) {
-            message.reply('❌ Could not parse that time. Try again like: "Sunday June 5th 5:00pm"');
-            return;
-          }
-          session.end = parsedEnd;
-          session.stage = 4;
-          message.reply('Please provide a **description** for the event.');
-          break;
-        
-        case 4:
-          session.description = message.content;
-          session.stage = 5;
-          message.reply('Now, either drag and drop an image into your message or type an **image URL**, or type "skip" if no image is needed.');
-          break;
-        
-        case 5:
-          if (message.attachments.size > 0) {
-            const image = message.attachments.find(a => a.contentType?.startsWith('image/'));
-            session.imageUrl = image?.url || null;
-          } else if (message.content.toLowerCase() !== 'skip') {
-            session.imageUrl = message.content;
-          }
-        
-          session.stage = 6;
-          session.currentRoleIndex = 0;
-        
-          const firstRole = getNextAvailableRole(session);
-          if (!firstRole) {
-            session.stage = 7;
-            await finalizeEvent(message, session, false);
-            return;
-          }
-        
-          message.reply(`📌 RSVP Role Setup\nInclude role **${firstRole.icon} ${firstRole.name}**? (yes/no or skip)`);
-          break;
-        
-        case 6:
-          const input = message.content.toLowerCase();
-        
-          if (isEdit && session.roleEditMode === 'reviewing-existing') {
-            const existing = session.roles[session.reviewIndex];
-            if (!existing) {
-              session.roleEditMode = 'adding-new';
-              session.currentRoleIndex = 0;
-        
-              while (
-                session.currentRoleIndex < session.availableRoles.length &&
-                session.roles.some(r => r.name === session.availableRoles[session.currentRoleIndex].name)
-              ) {
-                session.currentRoleIndex++;
-              }
-        
-              const role = session.availableRoles[session.currentRoleIndex];
-              if (!role) {
-                session.stage = 7;
-                await finalizeEvent(message, session, isEdit);
-                return;
-              }
-        
-              message.reply(`➕ Add new role **${role.icon} ${role.name}**? (yes/no or skip)`);
-              return;
-            }
-        
-            if (input === 'yes') {
-              session.reviewIndex++;
-            } else if (input === 'no') {
-              session.roles.splice(session.reviewIndex, 1);
-            } else if (input === 'skip') {
-              session.reviewIndex++;
-            } else {
-              message.reply('❓ Reply "yes" to keep, "no" to remove, or "skip" to skip this role.');
-              return;
-            }
-        
-            const next = session.roles[session.reviewIndex];
-            if (next) {
-              message.reply(`Keep role **${next.icon} ${next.name}**? (yes/no/skip)`);
-              return;
-            }
-        
-            session.roleEditMode = 'adding-new';
-            session.currentRoleIndex = 0;
-        
-            const newRole = getNextAvailableRole(session);
-            if (!newRole) {
-              session.stage = 7;
-              await finalizeEvent(message, session, isEdit);
-              return;
-            }
-        
-            message.reply(`➕ Add new role **${newRole.icon} ${newRole.name}**? (yes/no or skip)`);
-            return;
-          }
-        
-          const roleToOffer = getNextAvailableRole(session);
-        
-          if (!roleToOffer) {
-            session.stage = 7;
-            await finalizeEvent(message, session, isEdit);
-            return;
-          }
-        
-          if (input === 'yes') {
-            session.stage = 'role-capacity';
-            session.awaitingRole = roleToOffer;
-            message.reply(`How many participants can join as **${roleToOffer.icon} ${roleToOffer.name}**?`);
-            return;
-          } else if (input === 'no' || input === 'skip') {
-            return await advanceAndPromptNextRole(session, message, isEdit);
-          }
-          break;
-        
-        case 7:
+          session.stage = 7;
           await finalizeEvent(message, session, isEdit);
-          break;
-        
-        case 'role-capacity':
-          const cap = parseInt(message.content);
-          if (isNaN(cap) || cap <= 0) {
-            message.reply('❌ Please enter a valid number greater than 0.');
-            return;
+          return;
+        }
+    
+        session.awaitingRole = session.availableRoles[selection - 1];
+        session.stage = 'role-capacity';
+        message.reply(`How many participants can join as **${session.awaitingRole.icon} ${session.awaitingRole.name}**? (Type a number or "none" for unlimited)`);
+        break;
+    
+      case 'role-capacity':
+        let capacity = message.content.trim().toLowerCase();
+        if (capacity === 'none') {
+          capacity = 0;
+        } else {
+          capacity = parseInt(capacity);
+          if (isNaN(capacity) || capacity < 0) {
+            return message.reply('❌ Invalid number. Please type a valid number or "none".');
           }
-        
-          session.roles.push({
-            name: session.awaitingRole.name,
-            icon: session.awaitingRole.icon,
-            department: session.awaitingRole.department,  // ✅ Carry department
-            capacity: cap,
-          });
-        
-          session.currentRoleIndex++;
-          const nextRole = getNextAvailableRole(session);
-        
-          if (nextRole) {
-            session.stage = 6;
-            message.reply(`Include the role **${nextRole.icon} ${nextRole.name}**? (yes/no or skip)`);
-          } else {
-            session.stage = 7;
-            await finalizeEvent(message, session, isEdit);
-          }
-          break;
-        
-        default:
-          break;        
+        }
+    
+        session.roles.push({
+          name: session.awaitingRole.name,
+          icon: session.awaitingRole.icon,
+          department: session.awaitingRole.department,
+          capacity
+        });
+    
+        session.availableRoles = session.availableRoles.filter(r => r.name !== session.awaitingRole.name);
+    
+        if (session.availableRoles.length === 0) {
+          session.stage = 7;
+          await finalizeEvent(message, session, isEdit);
+          return;
+        }
+    
+        session.stage = 'select-role';
+        promptNextAvailableRole(message, session);
+        break;
+    
+      case 7: // Finalize Event
+        await finalizeEvent(message, session, isEdit);
+        break;
+    
+      default:
+        break;
     }
+    
     return; // Stop processing further commands while in an interactive session.
   }
   // -------------------------
