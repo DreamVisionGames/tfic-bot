@@ -30,23 +30,30 @@ const TIMEZONES = {
 
 function parseUserTime(text, timezone) {
   try {
-    const cleanedText = text.replace(/(\d{1,2})(st|nd|rd|th)/gi, '$1');
+    const cleanedText = text
+      .replace(/(\d{1,2})(st|nd|rd|th)/gi, '$1') // remove 1st, 2nd, etc
+      .replace(/\s*,\s*/, ', '); // ensure exactly one space after comma
 
-    const dt = DateTime.fromFormat(cleanedText, 'EEEE MMMM d, h:mma', {
-      zone: timezone,
-      setZone: true,
-      locale: 'en-US',
-      strict: false, // <-- allow mismatches like "Friday April 2"
-    });
+    // Try parsing more flexibly
+    const dt = DateTime.fromFormat(cleanedText, 'EEEE MMMM d, h:mma', { zone: timezone, locale: 'en' });
 
     if (dt.isValid) {
       return dt.toUTC().toISO();
     }
+
+    // Second attempt: allow missing weekday
+    const dt2 = DateTime.fromFormat(cleanedText, 'MMMM d, h:mma', { zone: timezone, locale: 'en' });
+
+    if (dt2.isValid) {
+      return dt2.toUTC().toISO();
+    }
+
     return null;
-  } catch {
+  } catch (err) {
     return null;
   }
 }
+
 
 app.use(bodyParser.json());
 
@@ -136,21 +143,7 @@ function buildEventEmbed(event) {
         .setDisabled(isFull)
     );
   }
-  // 🔵 Still inside buildEventEmbed(event)
-  if (true) { // 🔥 TEMP: Allow delete button always. (You can lock this down later)
-    if (currentRow.components.length >= 5) {
-      rows.push(currentRow);
-      currentRow = new ActionRowBuilder();
-    }
-    
-    currentRow.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`delete-${event.id}`)
-        .setLabel('🗑️ Delete Event')
-        .setStyle(ButtonStyle.Danger)
-    );
-  }
-  
+   
   // Add Cancel RSVP button if needed
   if ((event.rsvps?.filter(r => r.attending)?.length || 0) > 0) {
     if (currentRow.components.length >= 5) {
@@ -1038,34 +1031,6 @@ client.on('interactionCreate', async (interaction) => {
         content: `❌ Failed to cancel RSVP. ${err?.response?.data || 'Unknown error.'}`,
         ephemeral: true
       });
-    }
-  }
-  // 🔵 New Delete Event handler
-  else if (customId.startsWith('delete-')) {
-    const eventId = parseInt(customId.split('-')[1]);
-
-    try {
-      await interaction.deferReply({ ephemeral: true });
-
-      // 👨‍💻 Delete event via backend API
-      await axios.delete(`/api/events/${eventId}`, {
-        headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
-      });
-
-      // 🧹 Delete the message from Discord too
-      await interaction.message.delete();
-
-      console.log(`✅ Deleted event ${eventId}`);
-      await interaction.editReply({ content: `🗑️ Event deleted successfully.` });
-    } catch (err) {
-      console.error('❌ Delete event failed:', err?.response?.data || err.message);
-      try {
-        await interaction.editReply({
-          content: `❌ Failed to delete event. ${err?.response?.data || 'Unknown error.'}`
-        });
-      } catch (e) {
-        console.warn('⚠️ Could not send error reply after failed delete:', e.message);
-      }
     }
   }
 });
