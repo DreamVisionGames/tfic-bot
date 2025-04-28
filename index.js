@@ -356,7 +356,9 @@ async function finalizeEvent(message, session, isEdit) {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` },
       });
       
-      await sendCustomEventEmbed(message.channel, fullEventRes.data);    
+      const targetChannelId = session.postInChannelId || process.env.EVENTS_CHANNEL_ID || message.channel.id;
+      const targetChannel = await client.channels.fetch(targetChannelId);
+      await sendCustomEventEmbed(targetChannel, fullEventRes.data); 
       
     }
   } catch (err) {
@@ -437,6 +439,21 @@ client.on('messageCreate', async (message) => {
     }
 
     switch (session.stage) {
+      case 'input-post-channel':
+      // Try to parse a channel mention or ID
+      const channelMentionId = message.content.replace(/[<#>]/g, '').trim();
+
+      try {
+        const targetChannel = await client.channels.fetch(channelMentionId);
+        session.postInChannelId = targetChannel.id;
+        session.stage = 1; // ✅ Now move to Title collection
+        message.reply(`✅ Got it! Events will be posted in **#${targetChannel.name}**.\n\nNow, what is the **event title**?`);
+      } catch (err) {
+        console.error('Channel fetch failed:', err.message);
+        message.reply('❌ Could not find that channel. Please type a valid channel ID or mention a channel (example: #events).');
+      }
+      return;
+
       case 'edit-title':
         if (message.content.toLowerCase() !== 'skip') {
           session.title = message.content;
@@ -740,7 +757,7 @@ client.on('messageCreate', async (message) => {
       const availableRoles = res.data;
   
       eventCreateSessions[message.author.id] = {
-        stage: 1,
+        stage: 'input-post-channel', // CHANGED default stage!
         title: '',
         start: '',
         end: '',
@@ -748,8 +765,10 @@ client.on('messageCreate', async (message) => {
         imageUrl: null,
         roles: [],
         currentRoleIndex: 0,
-        availableRoles, // now pulled from API
+        availableRoles,
+        postInChannelId: null, // 🆕 where to post
       };
+      
   
       message.reply('Let’s create a new event! What is the **event title**? (Type "cancel" at any time to cancel)');
     } catch (err) {
