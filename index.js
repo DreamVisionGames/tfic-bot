@@ -308,17 +308,24 @@ async function sendCustomEventEmbed(channel, event) {
     console.error('❌ Failed to sync Discord message to backend:', err?.response?.data || err.message);
   }
 }
+
 function advanceAndPromptNextRole(session, message, isEdit) {
-  session.currentRoleIndex++;  // 👈 force the increment
+  session.currentRoleIndex++;
   const nextRole = getNextAvailableRole(session);
+
   if (!nextRole) {
-    session.stage = 7;
-    return finalizeEvent(message, session, isEdit);
+    // No more roles to add — now ask if they want to remove
+    session.stage = 'review-existing-roles';
+    return message.reply(
+      `✅ You've added all roles.\n\n` +
+      `Would you like to **remove** any roles before finalizing?\n\nType **yes** or **no**.`
+    );
   }
 
-  const roleLabel = `${nextRole.icon} ${nextRole.name}`.slice(0, 80); // Truncate the label to 80 characters
+  const roleLabel = `${nextRole.icon} ${nextRole.name}`.slice(0, 80);
   return message.reply(`➕ Add role **${roleLabel}**? (yes/no or skip)`);
 }
+
 
 async function finalizeEvent(message, session, isEdit) {
   const payload = {
@@ -570,10 +577,11 @@ client.on('messageCreate', async (message) => {
           if (session.roles.length === 0) {
             return message.reply('⚠️ You must add at least one role before continuing.');
           }
-          session.stage = 7;
-          await finalizeEvent(message, session, isEdit);
-          return;
-        }
+          session.stage = 'review-existing-roles';
+          return message.reply(
+            `✅ You've added all roles.\n\nWould you like to **remove** any roles before finalizing?\n\nType **yes** or **no**.`
+          );
+        }        
     
         session.awaitingRole = session.availableRoles[selection - 1];
         session.stage = 'role-capacity';
@@ -613,7 +621,52 @@ client.on('messageCreate', async (message) => {
       case 7: // Finalize Event
         await finalizeEvent(message, session, isEdit);
         break;
-    
+        case 'review-existing-roles':
+          if (message.content.toLowerCase() === 'yes') {
+            if (session.roles.length === 0) {
+              return message.reply('⚠️ No roles to remove.');
+            }
+            session.stage = 'remove-role';
+            const roleList = session.roles.map((r, idx) => `${idx + 1}. ${r.icon} ${r.name}`).join('\n');
+            return message.reply(
+              `🎯 **Current Roles:**\n\n${roleList}\n\nType the number of the role you want to remove.`
+            );
+          } else if (message.content.toLowerCase() === 'no') {
+            if (session.roles.length === 0) {
+              return message.reply('⚠️ You must add at least one role.');
+            }
+            session.stage = 7;
+            return finalizeEvent(message, session, isEdit);
+          } else {
+            return message.reply('❌ Please type **yes** or **no**.');
+          }
+        
+          case 'remove-role':
+            const removeIdx = parseInt(message.content.trim()) - 1;
+            if (isNaN(removeIdx) || removeIdx < 0 || removeIdx >= session.roles.length) {
+              return message.reply('❌ Invalid selection. Type the number of the role you want to remove.');
+            }
+            
+            const removedRole = session.roles.splice(removeIdx, 1)[0];
+          
+            if (session.availableRoles) {
+              session.availableRoles.push({
+                name: removedRole.name,
+                icon: removedRole.icon,
+                department: removedRole.department,
+              });
+            }
+          
+            if (session.roles.length === 0) {
+              return message.reply('⚠️ You have removed all roles. Please add at least one before finalizing.');
+            }
+          
+            session.stage = 'review-existing-roles';
+            const newList = session.roles.map((r, idx) => `${idx + 1}. ${r.icon} ${r.name}`).join('\n');
+            return message.reply(
+              `✅ Removed **${removedRole.name}**.\n\n🎯 **Current Roles:**\n\n${newList}\n\nType the number of another role to remove, or type **no** to finalize.`
+            );
+        
       default:
         break;
     }
