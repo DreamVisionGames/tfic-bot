@@ -21,7 +21,12 @@ const TIMEZONES = {
 
 function parseUserTime(text, timezone) {
   try {
-    const dt = DateTime.fromFormat(text, 'EEEE MMMM d h:mma', { zone: timezone });
+    // 🧹 Clean the text: remove any "st", "nd", "rd", "th" after numbers
+    const cleanedText = text.replace(/(\d{1,2})(st|nd|rd|th)/gi, '$1');
+
+    // 🕒 Parse using correct format
+    const dt = DateTime.fromFormat(cleanedText, 'EEEE MMMM d, h:mma', { zone: timezone });
+
     if (dt.isValid) {
       return dt.toUTC().toISO();
     }
@@ -30,6 +35,7 @@ function parseUserTime(text, timezone) {
     return null;
   }
 }
+
 
 app.use(bodyParser.json());
 
@@ -119,7 +125,21 @@ function buildEventEmbed(event) {
         .setDisabled(isFull)
     );
   }
-
+  // 🔵 Still inside buildEventEmbed(event)
+  if (true) { // 🔥 TEMP: Allow delete button always. (You can lock this down later)
+    if (currentRow.components.length >= 5) {
+      rows.push(currentRow);
+      currentRow = new ActionRowBuilder();
+    }
+    
+    currentRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`delete-${event.id}`)
+        .setLabel('🗑️ Delete Event')
+        .setStyle(ButtonStyle.Danger)
+    );
+  }
+  
   // Add Cancel RSVP button if needed
   if ((event.rsvps?.filter(r => r.attending)?.length || 0) > 0) {
     if (currentRow.components.length >= 5) {
@@ -143,8 +163,6 @@ function buildEventEmbed(event) {
   return { embeds: [embed], components: rows };
 
 }
-
-
 
 const fs = require('fs');
 const path = require('path');
@@ -370,6 +388,27 @@ client.once('ready', () => {
 
 // Listen for messages
 client.on('messageCreate', async (message) => {
+  // 🔵 Add this inside client.on('messageCreate') alongside your other commands
+  if (message.content.toLowerCase() === '!commands' || message.content.toLowerCase() === '!help') {
+    message.reply(`📜 **Available Bot Commands:**
+  - \`!eventcreate\` — Create a new event interactively
+  - \`!eventedit <eventId>\` — Edit an existing event
+  - \`!eventlist\` — Show upcoming events
+  - \`!rsvp <eventId> [role]\` — RSVP to an event
+  - \`!fetchmsg <messageId> [channelId]\` — Fetch and manually edit a message (admin)
+  - \`!checkchannelaccess <channelId>\` — Test if bot can see a channel
+  - \`!updateevent <eventId>\` — Manually refresh an event embed
+  
+  🛠️ **Button Actions Now Available:**
+  - Cancel RSVP ❌
+  - Delete Event 🗑️
+  
+  ℹ️ Type \`cancel\` anytime during event creation to stop.
+  `);
+    return;
+  }
+  
+  
   // Ignore messages from bots
   if (message.author.bot) return;
   
@@ -387,49 +426,6 @@ client.on('messageCreate', async (message) => {
     }
 
     switch (session.stage) {
-      case 'edit-title':
-        if (message.content.toLowerCase() !== 'skip') {
-          session.title = message.content;
-        }
-        session.stage = 'edit-start';
-        message.reply(`Enter a new **start time** (YYYY-MM-DDTHH:MM) or type "skip":`);
-        break;
-    
-      case 'edit-start':
-        if (message.content.toLowerCase() !== 'skip') {
-          session.start = message.content;
-        }
-        session.stage = 'edit-end';
-        message.reply(`Enter a new **end time** (YYYY-MM-DDTHH:MM) or type "skip":`);
-        break;
-    
-      case 'edit-end':
-        if (message.content.toLowerCase() !== 'skip') {
-          session.end = message.content;
-        }
-        session.stage = 'edit-description';
-        message.reply(`Enter a new **description**, or type "skip":`);
-        break;
-    
-      case 'edit-description':
-        if (message.content.toLowerCase() !== 'skip') {
-          session.description = message.content;
-        }
-        session.stage = 'edit-image';
-        message.reply(`Upload a new image or type an **image URL**, or "skip" to leave unchanged:`);
-        break;
-    
-      case 'edit-image':
-        if (message.attachments.size > 0) {
-          const image = message.attachments.find(a => a.contentType?.startsWith('image/'));
-          session.imageUrl = image?.url || session.imageUrl;
-        } else if (message.content.toLowerCase() !== 'skip') {
-          session.imageUrl = message.content;
-        }
-        session.stage = 'select-role';
-        promptNextAvailableRole(message, session);
-        break;
-    
       case 1: // New Event: Collect Title
         session.title = message.content;
         session.stage = 'timezone-start';
@@ -454,7 +450,7 @@ client.on('messageCreate', async (message) => {
         }
         session.startTimezone = TIMEZONES[tzStart];
         session.stage = 'input-start-time';
-        message.reply('📝 Now type the **start time** (example: "Sunday June 5th 2:30pm")');
+        message.reply('📝 Now type the **start time** (example: "Sunday June 5, 2:30pm")');
         break;
     
       case 'input-start-time':
@@ -732,12 +728,11 @@ client.on('messageCreate', async (message) => {
         end: event.end,
         description: event.description || '',
         imageUrl: event.eventImageUrl || null,
-        roles: event.roles || [], // existing RSVP roles
+        roles: event.roles || [],
         availableRoles: rolesRes.data,
         currentRoleIndex: 0,
-        roleEditMode: 'reviewing-existing', // 👈 NEW: used to control RSVP flow
-        reviewIndex: 0 // 👈 NEW: track index of reviewing existing roles
-      };
+        awaitingField: null,
+      };      
       
 
       message.reply(`✏️ Editing Event **${event.title}**.\nEnter a new **title**, or type "skip" to keep existing.`);
@@ -841,13 +836,6 @@ client.on('messageCreate', async (message) => {
       console.error('❌ Update failed:', err?.response?.data || err.message);
       message.reply('❌ Failed to update event embed.');
     }
-  }
-
-  if (message.content === '!listchannels') {
-    const channels = message.guild.channels.cache;
-    channels.forEach(channel => {
-      message.channel.send(`Channel Name: ${channel.name}, Channel ID: ${channel.id}`);
-    });
   }
   
 });
@@ -1021,6 +1009,34 @@ client.on('interactionCreate', async (interaction) => {
         content: `❌ Failed to cancel RSVP. ${err?.response?.data || 'Unknown error.'}`,
         ephemeral: true
       });
+    }
+  }
+  // 🔵 New Delete Event handler
+  else if (customId.startsWith('delete-')) {
+    const eventId = parseInt(customId.split('-')[1]);
+
+    try {
+      await interaction.deferReply({ ephemeral: true });
+
+      // 👨‍💻 Delete event via backend API
+      await axios.delete(`/api/events/${eventId}`, {
+        headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
+      });
+
+      // 🧹 Delete the message from Discord too
+      await interaction.message.delete();
+
+      console.log(`✅ Deleted event ${eventId}`);
+      await interaction.editReply({ content: `🗑️ Event deleted successfully.` });
+    } catch (err) {
+      console.error('❌ Delete event failed:', err?.response?.data || err.message);
+      try {
+        await interaction.editReply({
+          content: `❌ Failed to delete event. ${err?.response?.data || 'Unknown error.'}`
+        });
+      } catch (e) {
+        console.warn('⚠️ Could not send error reply after failed delete:', e.message);
+      }
     }
   }
 });
