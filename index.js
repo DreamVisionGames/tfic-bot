@@ -112,7 +112,7 @@ function buildEventEmbed(event) {
                 }) || [];
       
               const count = attendees.length;
-              const roleLine = `**${role.icon} ${role.name}** — ${count}/${role.capacity}`;
+              const roleLine = `**${role.icon} ${role.name}** — ${count}/${role.capacity > 0 ? role.capacity : '∞'}`;
               const attendeeList = attendees.length ? `\n${attendees.join('\n')}` : '';
       
               return `${roleLine}${attendeeList}`;
@@ -128,7 +128,7 @@ function buildEventEmbed(event) {
 
   for (const role of event.roles || []) {
     const current = event.rsvps?.filter(r => r.role === role.name && r.attending).length || 0;
-    const isFull = current >= role.capacity;
+    const isFull = role.capacity > 0 && current >= role.capacity;
 
     if (currentRow.components.length >= 5) {
       rows.push(currentRow);
@@ -204,7 +204,7 @@ async function sendCustomEventEmbed(channel, event) {
                 }) || [];
 
               const count = attendees.length;
-              const roleLine = `**${role.icon} ${role.name}** — ${count}/${role.capacity}`;
+              const roleLine = `**${role.icon} ${role.name}** — ${count}/${role.capacity > 0 ? role.capacity : '∞'}`;
               const attendeeList = attendees.length ? `\n${attendees.join('\n')}` : '';
 
               return `${roleLine}${attendeeList}`;
@@ -455,7 +455,7 @@ client.on('messageCreate', async (message) => {
           "Type the number corresponding to your timezone:"
         );        
         break;
-    
+    3
       case 'timezone-start':
         const tzStart = parseInt(message.content);
         if (!TIMEZONES[tzStart]) {
@@ -469,7 +469,7 @@ client.on('messageCreate', async (message) => {
       case 'input-start-time':
         const parsedStart = parseUserTime(message.content, session.startTimezone);
         if (!parsedStart) {
-          return message.reply('❌ Could not parse that time. Try again like: "Sunday June 5th 2:30pm"');
+          return message.reply('❌ Could not parse that time. Try again like: "Sunday June 5, 2:30pm"');
         }
         session.start = parsedStart;
         session.stage = 'timezone-end';
@@ -869,7 +869,7 @@ client.on('messageCreate', async (message) => {
     }
   
     try {
-      await axios.delete(`/api/events/${eventId}`, {
+      await axios.delete(`/api/events/bot/${eventId}`, {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
       });
       message.reply(`🗑️ Successfully deleted event ID: **${eventId}**`);
@@ -877,7 +877,7 @@ client.on('messageCreate', async (message) => {
     } catch (err) {
       console.error('❌ Failed to delete event via command:', err?.response?.data || err.message);
       message.reply(`❌ Failed to delete event. ${err?.response?.data || 'Unknown error.'}`);
-    }
+    }    
   
     return;
   }
