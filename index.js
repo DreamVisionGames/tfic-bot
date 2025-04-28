@@ -395,22 +395,22 @@ client.on('messageCreate', async (message) => {
   // 🔵 Add this inside client.on('messageCreate') alongside your other commands
   if (message.content.toLowerCase() === '!commands' || message.content.toLowerCase() === '!help') {
     message.reply(`📜 **Available Bot Commands:**
-  - \`!eventcreate\` — Create a new event interactively
-  - \`!eventedit <eventId>\` — Edit an existing event
-  - \`!eventlist\` — Show upcoming events
-  - \`!rsvp <eventId> [role]\` — RSVP to an event
-  - \`!fetchmsg <messageId> [channelId]\` — Fetch and manually edit a message (admin)
-  - \`!checkchannelaccess <channelId>\` — Test if bot can see a channel
-  - \`!updateevent <eventId>\` — Manually refresh an event embed
-  
-  🛠️ **Button Actions Now Available:**
-  - Cancel RSVP ❌
-  - Delete Event 🗑️
-  
-  ℹ️ Type \`cancel\` anytime during event creation to stop.
-  `);
+    - \`!eventcreate\` — Create a new event interactively
+    - \`!eventedit <eventId>\` — Edit an existing event
+    - \`!eventlist\` — Show upcoming events
+    - \`!rsvp <eventId> [role]\` — RSVP to an event
+    - \`!fetchmsg <messageId> [channelId]\` — Fetch and manually edit a message (admin)
+    - \`!checkchannelaccess <channelId>\` — Test if bot can see a channel
+    - \`!updateevent <eventId>\` — Manually refresh an event embed
+    - \`!deleteevent <eventId>\` — Delete an event manually 🗑️
+    
+    🛠️ **Button Actions Now Available:**
+    - Cancel RSVP ❌
+    
+    ℹ️ Type \`cancel\` anytime during event creation to stop.
+    `);
     return;
-  }
+  } 
   
   
   // Ignore messages from bots
@@ -859,7 +859,28 @@ client.on('messageCreate', async (message) => {
       message.reply('❌ Failed to update event embed.');
     }
   }
+  if (message.content.startsWith('!deleteevent')) {
+    const args = message.content.split(' ');
+    const eventId = parseInt(args[1]);
   
+    if (isNaN(eventId)) {
+      message.reply('❌ Invalid event ID. Usage: `!deleteevent <eventId>`');
+      return;
+    }
+  
+    try {
+      await axios.delete(`/api/events/${eventId}`, {
+        headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
+      });
+      message.reply(`🗑️ Successfully deleted event ID: **${eventId}**`);
+      console.log(`✅ Event ${eventId} deleted by bot command`);
+    } catch (err) {
+      console.error('❌ Failed to delete event via command:', err?.response?.data || err.message);
+      message.reply(`❌ Failed to delete event. ${err?.response?.data || 'Unknown error.'}`);
+    }
+  
+    return;
+  }
 });
 
 client.on('interactionCreate', async (interaction) => {
