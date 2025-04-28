@@ -21,17 +21,26 @@ const TIMEZONES = {
 
 function parseUserTime(text, timezone) {
   try {
-    // 🧹 Clean the text: remove any "st", "nd", "rd", "th" after numbers
-    const cleanedText = text.replace(/(\d{1,2})(st|nd|rd|th)/gi, '$1');
+    const cleanedText = text
+      .replace(/(\d{1,2})(st|nd|rd|th)/gi, '$1') // remove 1st, 2nd, etc
+      .replace(/\s*,\s*/, ', '); // ensure exactly one space after comma
 
-    // 🕒 Parse using correct format
-    const dt = DateTime.fromFormat(cleanedText, 'EEEE MMMM d, h:mma', { zone: timezone });
+    // Try parsing more flexibly
+    const dt = DateTime.fromFormat(cleanedText, 'EEEE MMMM d, h:mma', { zone: timezone, locale: 'en' });
 
     if (dt.isValid) {
       return dt.toUTC().toISO();
     }
+
+    // Second attempt: allow missing weekday
+    const dt2 = DateTime.fromFormat(cleanedText, 'MMMM d, h:mma', { zone: timezone, locale: 'en' });
+
+    if (dt2.isValid) {
+      return dt2.toUTC().toISO();
+    }
+
     return null;
-  } catch {
+  } catch (err) {
     return null;
   }
 }
