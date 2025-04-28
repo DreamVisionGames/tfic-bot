@@ -9,42 +9,44 @@ const app = express();
 const { DateTime } = require('luxon');
 
 const TIMEZONES = {
-  1: 'America/New_York',    // Eastern
-  2: 'America/Chicago',     // Central
-  3: 'America/Denver',      // Mountain
-  4: 'America/Los_Angeles', // Pacific
-  5: 'UTC',
-  6: 'Europe/London',       // UK
-  7: 'Europe/Paris',        // Central Europe
-  8: 'Australia/Sydney'
+  1: 'America/New_York',      // Eastern
+  2: 'America/Chicago',       // Central
+  3: 'America/Denver',        // Mountain
+  4: 'America/Los_Angeles',   // Pacific
+  5: 'America/Sao_Paulo',     // Brazil
+  6: 'UTC',                   // UTC
+  7: 'Europe/London',         // UK
+  8: 'Europe/Paris',          // Central Europe
+  9: 'Europe/Moscow',         // Moscow
+ 10: 'Asia/Dubai',            // UAE
+ 11: 'Asia/Kolkata',          // India
+ 12: 'Asia/Shanghai',         // China
+ 13: 'Asia/Tokyo',            // Japan
+ 14: 'Asia/Seoul',            // South Korea
+ 15: 'Australia/Sydney',      // Australia East
+ 16: 'Pacific/Auckland',      // New Zealand
+ 17: 'Africa/Johannesburg',   // South Africa
 };
 
 function parseUserTime(text, timezone) {
   try {
-    const cleanedText = text
-      .replace(/(\d{1,2})(st|nd|rd|th)/gi, '$1') // remove 1st, 2nd, etc
-      .replace(/\s*,\s*/, ', '); // ensure exactly one space after comma
+    const cleanedText = text.replace(/(\d{1,2})(st|nd|rd|th)/gi, '$1');
 
-    // Try parsing more flexibly
-    const dt = DateTime.fromFormat(cleanedText, 'EEEE MMMM d, h:mma', { zone: timezone, locale: 'en' });
+    const dt = DateTime.fromFormat(cleanedText, 'EEEE MMMM d, h:mma', {
+      zone: timezone,
+      setZone: true,
+      locale: 'en-US',
+      strict: false, // <-- allow mismatches like "Friday April 2"
+    });
 
     if (dt.isValid) {
       return dt.toUTC().toISO();
     }
-
-    // Second attempt: allow missing weekday
-    const dt2 = DateTime.fromFormat(cleanedText, 'MMMM d, h:mma', { zone: timezone, locale: 'en' });
-
-    if (dt2.isValid) {
-      return dt2.toUTC().toISO();
-    }
-
     return null;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
-
 
 app.use(bodyParser.json());
 
@@ -439,17 +441,26 @@ client.on('messageCreate', async (message) => {
         session.title = message.content;
         session.stage = 'timezone-start';
         message.reply(
-          "🕓 What timezone is the **start time** in?\n" +
+          "🕓 What timezone is the time in?\n" +
           "**1** = Eastern (New York)\n" +
           "**2** = Central (Chicago)\n" +
           "**3** = Mountain (Denver)\n" +
           "**4** = Pacific (Los Angeles)\n" +
-          "**5** = UTC\n" +
-          "**6** = UK (London)\n" +
-          "**7** = Central Europe (Paris)\n" +
-          "**8** = Australia (Sydney)\n\n" +
+          "**5** = Brazil (Sao Paulo)\n" +
+          "**6** = UTC\n" +
+          "**7** = UK (London)\n" +
+          "**8** = Central Europe (Paris)\n" +
+          "**9** = Moscow\n" +
+          "**10** = UAE (Dubai)\n" +
+          "**11** = India (Kolkata)\n" +
+          "**12** = China (Shanghai)\n" +
+          "**13** = Japan (Tokyo)\n" +
+          "**14** = South Korea (Seoul)\n" +
+          "**15** = Australia East (Sydney)\n" +
+          "**16** = New Zealand (Auckland)\n" +
+          "**17** = South Africa (Johannesburg)\n\n" +
           "Type the number corresponding to your timezone:"
-        );
+        );        
         break;
     
       case 'timezone-start':
@@ -470,17 +481,26 @@ client.on('messageCreate', async (message) => {
         session.start = parsedStart;
         session.stage = 'timezone-end';
         message.reply(
-          "🕓 What timezone is the **end time** in?\n" +
+          "🕓 What timezone is the time in?\n" +
           "**1** = Eastern (New York)\n" +
           "**2** = Central (Chicago)\n" +
           "**3** = Mountain (Denver)\n" +
           "**4** = Pacific (Los Angeles)\n" +
-          "**5** = UTC\n" +
-          "**6** = UK (London)\n" +
-          "**7** = Central Europe (Paris)\n" +
-          "**8** = Australia (Sydney)\n\n" +
+          "**5** = Brazil (Sao Paulo)\n" +
+          "**6** = UTC\n" +
+          "**7** = UK (London)\n" +
+          "**8** = Central Europe (Paris)\n" +
+          "**9** = Moscow\n" +
+          "**10** = UAE (Dubai)\n" +
+          "**11** = India (Kolkata)\n" +
+          "**12** = China (Shanghai)\n" +
+          "**13** = Japan (Tokyo)\n" +
+          "**14** = South Korea (Seoul)\n" +
+          "**15** = Australia East (Sydney)\n" +
+          "**16** = New Zealand (Auckland)\n" +
+          "**17** = South Africa (Johannesburg)\n\n" +
           "Type the number corresponding to your timezone:"
-        );
+        );        
         break;
     
       case 'timezone-end':
