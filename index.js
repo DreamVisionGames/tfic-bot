@@ -430,6 +430,33 @@ client.on('messageCreate', async (message) => {
     }
 
     switch (session.stage) {
+      case 'edit-title':
+        if (message.content.toLowerCase() !== 'skip') {
+          session.title = message.content;
+        }
+        session.stage = 'timezone-start'; // 👈 after title, go ask for timezone
+        message.reply(
+          "🕓 What timezone is the start time in?\n" +
+          "**1** = Eastern (New York)\n" +
+          "**2** = Central (Chicago)\n" +
+          "**3** = Mountain (Denver)\n" +
+          "**4** = Pacific (Los Angeles)\n" +
+          "**5** = Brazil (Sao Paulo)\n" +
+          "**6** = UTC\n" +
+          "**7** = UK (London)\n" +
+          "**8** = Central Europe (Paris)\n" +
+          "**9** = Moscow\n" +
+          "**10** = UAE (Dubai)\n" +
+          "**11** = India (Kolkata)\n" +
+          "**12** = China (Shanghai)\n" +
+          "**13** = Japan (Tokyo)\n" +
+          "**14** = South Korea (Seoul)\n" +
+          "**15** = Australia East (Sydney)\n" +
+          "**16** = New Zealand (Auckland)\n" +
+          "**17** = South Africa (Johannesburg)\n\n" +
+          "Type the number corresponding to your timezone:"
+        );
+        break;
       case 1: // New Event: Collect Title
         session.title = message.content;
         session.stage = 'timezone-start';
