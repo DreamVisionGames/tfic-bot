@@ -1288,7 +1288,6 @@ app.post('/event-create', async (req, res) => {
 
     const event = res2.data;
     const channelId = process.env.DISCORD_DEFAULT_CHANNEL_ID || '1298331987584483500';
-
     if (!channelId) throw new Error("DISCORD_DEFAULT_CHANNEL_ID not set");
 
     const channel = await client.channels.fetch(channelId);
@@ -1297,10 +1296,15 @@ app.post('/event-create', async (req, res) => {
       await sendCustomEventEmbed(channel, event);
       console.log(`✅ Posted full event "${event.title}" to Discord`);
     } catch (embedErr) {
-      console.error('⚠️ Failed to send full event embed, sending fallback message:', embedErr.message || embedErr);
+      console.error('⚠️ Failed to send full event embed:', embedErr.message || embedErr);
 
-      // Fallback basic event message
-      await channel.send(`📅 New event created: **${event.title}**\nView it here: https://tfic-org-website-production.up.railway.app/events/${event.id}`);
+      // 🔒 Extra fallback isolation
+      try {
+        await channel.send(`📅 New event created: **${event.title}**\nhttps://tfic-org-website-production.up.railway.app/events/${event.id}`);
+        console.log(`🛟 Sent fallback message for event ${event.title}`);
+      } catch (fallbackErr) {
+        console.error(`❌ Fallback message also failed:`, fallbackErr.message || fallbackErr);
+      }
     }
 
     res.sendStatus(200);
@@ -1309,7 +1313,6 @@ app.post('/event-create', async (req, res) => {
     res.status(500).send("Failed");
   }
 });
-
 
 // Webhook: Update existing event
 app.post('/event-update', async (req, res) => {
