@@ -462,15 +462,30 @@ client.on('messageCreate', async (message) => {
     
     switch (session.stage) {
       case 'awaiting-channel':
-      const mentionedChannel = message.mentions.channels.first();
+      try {
+        // ✅ Always allow cancel first
+        if (message.content.toLowerCase() === 'cancel') {
+          clearTimeout(eventCreateSessions[message.author.id]?.timeoutId);
+          delete eventCreateSessions[message.author.id];
+          await message.reply('✅ Event creation cancelled.');
+          return;
+        }
 
-      if (!mentionedChannel) {
-        return message.reply('❌ Please mention a channel (like #events).');
+        const mentionedChannel = message.mentions.channels.first();
+
+        if (!mentionedChannel) {
+          await message.reply('❌ Please mention a channel properly (use #channel mention, not just typing the name).');
+          return;
+        }
+
+        session.postInChannelId = mentionedChannel.id;
+        session.stage = 1; // Next: title
+        await message.reply(`✅ Got it! Events will be posted in **#${mentionedChannel.name}**.\n\nNow, what is the **event title**?`);
+      } catch (err) {
+        console.error('❌ Error during awaiting-channel phase:', err);
+        await message.reply('❌ Unexpected error handling your channel input. Try again.');
       }
-
-      session.postInChannelId = mentionedChannel.id;
-      session.stage = 1; // Ready for title
-      return message.reply(`✅ Got it! Events will be posted in **#${mentionedChannel.name}**.\n\nNow, what is the **event title**?`);
+      return;
 
       case 'edit-title':
         if (message.content.toLowerCase() !== 'skip') {
