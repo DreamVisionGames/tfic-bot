@@ -1294,27 +1294,53 @@ app.post('/event-update', async (req, res) => {
 
 
 // Webhook to delete event message
-app.post('/event-delete', async (req, res) => {
-  const { channelId, messageId } = req.body;
-  
-  if (!channelId || !messageId) {
-    console.warn('❌ Missing channelId or messageId in event-delete webhook');
-    return res.status(400).send('Missing data');
+if (message.content.startsWith(COMMAND_PREFIX + 'deleteevent')) {
+  const args = message.content.split(' ');
+  const eventId = parseInt(args[1]);
+
+  if (isNaN(eventId)) {
+    message.reply('❌ Invalid event ID. Usage: `!deleteevent <eventId>`');
+    return;
   }
 
   try {
-    const channel = await client.channels.fetch(channelId);
-    const message = await channel.messages.fetch(messageId);
-    
-    await message.delete();
+    // 🧠 FIRST: Fetch event info
+    const eventRes = await axios.get(`/api/events/public/${eventId}`, {
+      headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
+    });
 
-    console.log(`✅ Deleted Discord message ${messageId} from channel ${channelId}`);
-    res.sendStatus(200);
+    const event = eventRes.data;
+
+    // 🎯 If Discord message info exists, try deleting the message
+    if (event.discordChannelId && event.discordMessageId) {
+      try {
+        const channel = await client.channels.fetch(event.discordChannelId);
+        const msg = await channel.messages.fetch(event.discordMessageId);
+
+        await msg.delete();
+        console.log(`✅ Deleted Discord message for event ${eventId}`);
+      } catch (err) {
+        console.warn(`⚠️ Could not delete Discord message for event ${eventId}:`, err.message);
+      }
+    } else {
+      console.warn(`⚠️ No Discord message info found for event ${eventId}`);
+    }
+
+    // 💥 SECOND: Now delete the event from backend
+    await axios.delete(`/api/events/bot/${eventId}`, {
+      headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
+    });
+
+    await message.reply(`🗑️ Successfully deleted event ID: **${eventId}** and removed its Discord message`);
+    console.log(`✅ Fully deleted event ${eventId}`);
   } catch (err) {
-    console.error('❌ Failed to delete Discord message via webhook:', err.message || err);
-    res.status(500).send('Failed to delete message');
+    console.error('❌ Failed to delete event via command:', err?.response?.data || err.message);
+    await message.reply(`❌ Failed to delete event. ${err?.response?.data || 'Unknown error.'}`);
   }
-});
+
+  return;
+}
+
 
 // Start the webhook server
 app.listen(3045, () => {
