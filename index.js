@@ -1282,26 +1282,40 @@ app.post('/event-create', async (req, res) => {
   if (!eventId) return res.status(400).send("Missing eventId");
 
   try {
-    const res2 = await axios.get(`/api/events/public/${eventId}`, {
+    if (!client.isReady()) {
+      console.warn("⚠️ Discord client not ready, skipping Discord post");
+      res.status(202).send("Bot not ready yet"); // ✅ Ends the request gracefully
+      return;
+    }    
+
+    const eventRes = await axios.get(`/api/events/public/${eventId}`, {
       headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
     });
+    const event = eventRes.data;
 
-    const event = res2.data;
-    const channelId = process.env.DISCORD_DEFAULT_CHANNEL_ID || '1298331987584483500';
+    const channelId = event.discordChannelId || process.env.DISCORD_DEFAULT_CHANNEL_ID;
+    if (!channelId) {
+      console.warn("❌ No channelId available to post event");
+      return res.status(400).send("No valid Discord channelId");
+    }
+    
 
-    if (!channelId) throw new Error("DISCORD_DEFAULT_CHANNEL_ID not set");
-
-    const channel = await client.channels.fetch(channelId);
-    await sendCustomEventEmbed(channel, event);
-    console.log(`✅ Posted new event ${event.title} to Discord`);
+    try {
+      await sendCustomEventEmbed(channel, event);
+      console.log(`✅ Posted full event "${event.title}" to Discord`);
+    } catch (embedErr) {
+      console.error('⚠️ Failed to send full event embed:', embedErr.message || embedErr);
+      try {
+        await channel.send(`📅 New event created: **${event.title}**\nhttps://tfic-org-website-production.up.railway.app/events/${event.id}`);
+        console.log(`🛟 Sent fallback message for event ${event.title}`);
+      } catch (fallbackErr) {
+        console.error(`❌ Fallback message also failed:`, fallbackErr.message || fallbackErr);
+      }
+    }
 
     res.sendStatus(200);
   } catch (err) {
-    console.error('❌ Failed to post new event to Discord:', {
-      message: err?.message,
-      response: err?.response?.data,
-      stack: err?.stack
-    });
+    console.error('❌ Fully failed to post event to Discord:', err?.message || err);
     res.status(500).send("Failed");
   }
 });
@@ -1363,9 +1377,14 @@ app.post('/event-delete', async (req, res) => {
   }
 });
 
+app.get('/', (req, res) => {
+  res.send('Bot is alive');
+});
+
 // Start the webhook server
 app.listen(3045, () => {
   console.log('📡 Bot webhook server running on port 3045');
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
