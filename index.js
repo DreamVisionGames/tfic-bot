@@ -1284,8 +1284,9 @@ app.post('/event-create', async (req, res) => {
   try {
     if (!client.isReady()) {
       console.warn("⚠️ Discord client not ready, skipping Discord post");
-      return res.status(503).send("Bot not ready");
-    }
+      res.status(202).send("Bot not ready yet"); // ✅ Ends the request gracefully
+      return;
+    }    
 
     const eventRes = await axios.get(`/api/events/public/${eventId}`, {
       headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
@@ -1293,7 +1294,11 @@ app.post('/event-create', async (req, res) => {
     const event = eventRes.data;
 
     const channelId = event.discordChannelId || process.env.DISCORD_DEFAULT_CHANNEL_ID;
-    const channel = await client.channels.fetch(channelId);
+    if (!channelId) {
+      console.warn("❌ No channelId available to post event");
+      return res.status(400).send("No valid Discord channelId");
+    }
+    
 
     try {
       await sendCustomEventEmbed(channel, event);
