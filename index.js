@@ -1286,9 +1286,15 @@ app.post('/event-create', async (req, res) => {
       console.warn("⚠️ Discord client not ready, skipping Discord post");
       return res.status(503).send("Bot not ready");
     }
-  
+
+    const eventRes = await axios.get(`/api/events/public/${eventId}`, {
+      headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
+    });
+    const event = eventRes.data;
+
+    const channelId = event.discordChannelId || process.env.DISCORD_DEFAULT_CHANNEL_ID;
     const channel = await client.channels.fetch(channelId);
-  
+
     try {
       await sendCustomEventEmbed(channel, event);
       console.log(`✅ Posted full event "${event.title}" to Discord`);
@@ -1301,13 +1307,12 @@ app.post('/event-create', async (req, res) => {
         console.error(`❌ Fallback message also failed:`, fallbackErr.message || fallbackErr);
       }
     }
-  
+
     res.sendStatus(200);
   } catch (err) {
     console.error('❌ Fully failed to post event to Discord:', err?.message || err);
     res.status(500).send("Failed");
   }
-  
 });
 
 // Webhook: Update existing event
