@@ -481,6 +481,7 @@ client.on('messageCreate', async (message) => {
         session.postInChannelId = mentionedChannel.id;
         session.stage = 1; // Next: title
         await message.reply(`✅ Got it! Events will be posted in **#${mentionedChannel.name}**.\n\nNow, what is the **event title**?`);
+        return; // <-- 🔥 important
       } catch (err) {
         console.error('❌ Error during awaiting-channel phase:', err);
         await message.reply('❌ Unexpected error handling your channel input. Try again.');
@@ -538,7 +539,7 @@ client.on('messageCreate', async (message) => {
           "**17** = South Africa (Johannesburg)\n\n" +
           "Type the number corresponding to your timezone:"
         );        
-        break;
+        return; // <-- 🔥 important
       case 'timezone-start':
         const tzStart = parseInt(message.content);
         if (!TIMEZONES[tzStart]) {
@@ -546,8 +547,9 @@ client.on('messageCreate', async (message) => {
         }
         session.startTimezone = TIMEZONES[tzStart];
         session.stage = 'input-start-time';
-        message.reply('📝 Now type the **start time** (example: "Sunday June 5, 2:30pm")');
-        break;
+        await message.reply('📝 Now type the **start time** (example: "Sunday June 5, 2:30pm")');
+        return;
+
     
       case 'input-start-time':
         const parsedStart = parseUserTime(message.content, session.startTimezone);
