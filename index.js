@@ -421,7 +421,7 @@ client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
   // 🚫 Only respond if the message starts with the COMMAND_PREFIX (which is '!')
-  if (!message.content.startsWith(COMMAND_PREFIX)) return;
+  if (!message.content.startsWith(COMMAND_PREFIX) && !eventCreateSessions[message.author.id]) return;
 
   // 📋 Now safe to continue handling the command
 
