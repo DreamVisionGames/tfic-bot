@@ -344,6 +344,28 @@ async function finalizeEvent(message, session, isEdit) {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` },
       });
       await message.reply(`✅ Event "${session.title}" updated successfully.`);
+
+      try {
+        const updatedEventRes = await axios.get(`/api/events/public/${session.eventId}`, {
+          headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
+        });
+        const updatedEvent = updatedEventRes.data;
+      
+        if (updatedEvent.discordChannelId && updatedEvent.discordMessageId) {
+          const channel = await client.channels.fetch(updatedEvent.discordChannelId);
+          const discordMessage = await channel.messages.fetch(updatedEvent.discordMessageId);
+      
+          const { embeds, components } = buildEventEmbed(updatedEvent);
+          await discordMessage.edit({ embeds, components });
+      
+          console.log(`✅ Updated Discord message for event ${session.eventId}`);
+        } else {
+          console.warn(`⚠️ No Discord message linked for event ${session.eventId}`);
+        }
+      } catch (err) {
+        console.error(`❌ Failed to update Discord message after event edit:`, err?.response?.data || err.message);
+      }
+      
     } else {
       const res = await axios.post('/api/Events/bot', payload, {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` },
