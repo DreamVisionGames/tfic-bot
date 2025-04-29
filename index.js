@@ -268,9 +268,9 @@ async function sendCustomEventEmbed(channel, event) {
     } catch (err) {
       console.warn('⚠️ Failed to attach image:', err.message);
     }
-  } else if (event.eventImageUrl) {
+  } else if (event.eventImageUrl && (event.eventImageUrl.startsWith('http://') || event.eventImageUrl.startsWith('https://'))) {
     embed.setImage(event.eventImageUrl);
-  }
+  }  
 
   const message = await channel.send({
     embeds: [embed],
