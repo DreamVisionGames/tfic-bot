@@ -1,4 +1,5 @@
 require('dotenv').config();
+const COMMAND_PREFIX = '!';
 const { Client, GatewayIntentBits } = require('discord.js');
 const axios = require('axios');
 axios.defaults.baseURL = 'https://tfic-org-website-production.up.railway.app';
@@ -365,7 +366,7 @@ async function finalizeEvent(message, session, isEdit) {
     console.error('Final save error:', err?.response?.data || err.message);
     await message.reply(`❌ Failed to ${isEdit ? 'update' : 'create'} event. ${err?.response?.data || 'Unknown error.'}`);
   }
-
+  clearTimeout(session.timeoutId);
   delete eventCreateSessions[message.author.id];
 }
 function promptNextAvailableRole(message, session) {
@@ -379,6 +380,21 @@ function promptNextAvailableRole(message, session) {
 // Global conversation sessions for interactive event creation.
 // In production, you might want a more robust/persistent solution.
 const eventCreateSessions = {};
+const SESSION_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+function resetSessionTimeout(userId, message) {
+  const session = eventCreateSessions[userId];
+  if (!session) return;
+
+  if (session.timeoutId) {
+    clearTimeout(session.timeoutId);
+  }
+
+  session.timeoutId = setTimeout(() => {
+    console.log(`⌛ Session timed out for user ${userId}`);
+    delete eventCreateSessions[userId];
+    message.reply('⌛ Your event creation session has expired due to inactivity.');
+  }, SESSION_TIMEOUT_MS);
+}
 
 // Dedicated token for API calls from the bot.
 // This token must include the "BotAccess": "true" claim.
@@ -401,8 +417,16 @@ client.once('ready', () => {
 
 // Listen for messages
 client.on('messageCreate', async (message) => {
+  // 🚫 Ignore messages from other bots
+  if (message.author.bot) return;
+
+  // 🚫 Only respond if the message starts with the COMMAND_PREFIX (which is '!')
+  if (!message.content.startsWith(COMMAND_PREFIX)) return;
+
+  // 📋 Now safe to continue handling the command
+
   // 🔵 Add this inside client.on('messageCreate') alongside your other commands
-  if (message.content.toLowerCase() === '!commands' || message.content.toLowerCase() === '!help') {
+  if (message.content.toLowerCase() === COMMAND_PREFIX + 'commands' || message.content.toLowerCase() === COMMAND_PREFIX + 'help') {
     message.reply(`📜 **Available Bot Commands:**
     - \`!eventcreate\` — Create a new event interactively
     - \`!eventedit <eventId>\` — Edit an existing event
@@ -420,24 +444,22 @@ client.on('messageCreate', async (message) => {
     `);
     return;
   } 
-  
-  
-  // Ignore messages from bots
-  if (message.author.bot) return;
-  
   // -------------------------------
   // INTERACTIVE EVENT CREATION FLOW
   // -------------------------------
   if (eventCreateSessions[message.author.id]) {
     const session = eventCreateSessions[message.author.id];
     const isEdit = session.mode === 'edit';
+    resetSessionTimeout(message.author.id, message);
+
     // Allow cancellation at any time
     if (message.content.toLowerCase() === 'cancel') {
+      clearTimeout(eventCreateSessions[message.author.id]?.timeoutId);
       delete eventCreateSessions[message.author.id];
       message.reply('✅ Event creation cancelled.');
       return;
     }
-
+    
     switch (session.stage) {
       case 'input-post-channel':
       // Try to parse a channel mention or ID
@@ -509,7 +531,7 @@ client.on('messageCreate', async (message) => {
       case 'timezone-start':
         const tzStart = parseInt(message.content);
         if (!TIMEZONES[tzStart]) {
-          return message.reply('❌ Invalid timezone number. Please pick from 1 to 8.');
+          return message.reply('❌ Invalid timezone number. Please pick from 1 to 17.');
         }
         session.startTimezone = TIMEZONES[tzStart];
         session.stage = 'input-start-time';
@@ -549,7 +571,7 @@ client.on('messageCreate', async (message) => {
       case 'timezone-end':
         const tzEnd = parseInt(message.content);
         if (!TIMEZONES[tzEnd]) {
-          return message.reply('❌ Invalid timezone number. Please pick from 1 to 8.');
+          return message.reply('❌ Invalid timezone number. Please pick from 1 to 17.');
         }
         session.endTimezone = TIMEZONES[tzEnd];
         session.stage = 'input-end-time';
@@ -693,7 +715,7 @@ client.on('messageCreate', async (message) => {
   // -------------------------
   // Command: !eventlist - shows list of upcoming events
   // -------------------------
-  if (message.content.toLowerCase() === '!eventlist') {
+  if (message.content.toLowerCase() === COMMAND_PREFIX + 'eventlist') {
     try {
       const res = await axios.get('/api/events', {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` },
@@ -726,7 +748,7 @@ client.on('messageCreate', async (message) => {
   // -------------------------
   // RSVP Command: !rsvp 123 [Role]
   // -------------------------
-  if (message.content.startsWith('!rsvp')) {
+  if (message.content.startsWith(COMMAND_PREFIX + 'rsvp')) {
     const args = message.content.split(' ');
     const eventId = args[1];
     if (!eventId) {
@@ -751,7 +773,7 @@ client.on('messageCreate', async (message) => {
   // -------------------------
   // Command: !eventcreate - to start interactive event creation
   // -------------------------
-  if (message.content.toLowerCase().startsWith('!eventcreate')) {
+  if (message.content.toLowerCase().startsWith(COMMAND_PREFIX + 'eventcreate')){
     try {
       const res = await axios.get('/api/events/rsvp-options');
       const availableRoles = res.data;
@@ -767,6 +789,7 @@ client.on('messageCreate', async (message) => {
         currentRoleIndex: 0,
         availableRoles,
         postInChannelId: null, // 🆕 where to post
+        timeoutId: null // 🔥 add this
       };
       
   
@@ -783,7 +806,7 @@ client.on('messageCreate', async (message) => {
   // -------------------------
   // (Optional) Direct Command: !createevent "Event Title" "Start" "End" "Description" ["Optional Image URL"]
   // -------------------------
-  if (message.content.startsWith('!createevent')) {
+  if (message.content.startsWith(COMMAND_PREFIX + 'createevent')) {
     const regex = /"([^"]+)"\s+"([^"]+)"\s+"([^"]+)"\s+"([^"]+)"(?:\s+"([^"]+)")?/;
     const matches = message.content.match(regex);
     if (!matches) {
@@ -821,7 +844,7 @@ client.on('messageCreate', async (message) => {
     // -------------------------
   // Command: !eventedit [eventId]
   // -------------------------
-  if (message.content.startsWith('!eventedit')) {
+  if (message.content.startsWith(COMMAND_PREFIX + 'eventedit')) {
     const args = message.content.split(' ');
     const eventId = parseInt(args[1]);
     if (isNaN(eventId)) {
@@ -852,6 +875,7 @@ client.on('messageCreate', async (message) => {
         availableRoles: rolesRes.data,
         currentRoleIndex: 0,
         awaitingField: null,
+        timeoutId: null // 🔥 add this
       };      
       
 
@@ -863,7 +887,7 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  if (message.content === '!testchannel') {
+  if (message.content === COMMAND_PREFIX + 'testchannel'){
     try {
       const testChannelId = '1298331987584483500';
       const testChannel = await client.channels.fetch(testChannelId);
@@ -877,7 +901,7 @@ client.on('messageCreate', async (message) => {
   }
 
   // Inside your existing client.on('messageCreate') at the top level
-  if (message.content.startsWith('!fetchmsg')) {
+  if (message.content.startsWith(COMMAND_PREFIX + 'fetchmsg')) {
     const parts = message.content.split(' ');
     const messageId = parts[1];
     const channelId = parts[2] || message.channel.id;
@@ -903,7 +927,7 @@ client.on('messageCreate', async (message) => {
     return;
   }
   
-  if (message.content.startsWith('!checkchannelaccess')) {
+  if (message.content.startsWith(COMMAND_PREFIX + 'checkchannelaccess')) {
     const channelId = message.content.split(' ')[1];
     try {
       const channel = await client.channels.fetch(String(channelId));
@@ -914,7 +938,7 @@ client.on('messageCreate', async (message) => {
     }
   }
 
-  if (message.content.startsWith('!updateevent')) {
+  if (message.content.startsWith(COMMAND_PREFIX + 'updateevent')) {
     const parts = message.content.split(' ');
     const eventId = parseInt(parts[1]);
   
@@ -944,7 +968,7 @@ client.on('messageCreate', async (message) => {
       });
   
      
-      const channel = await client.channels.fetch(forcedChannelId);
+      const channel = await client.channels.fetch(channelId);
       const msg = await channel.messages.fetch(String(messageId));
   
       const { embeds, components } = buildEventEmbed(fullEvent);
@@ -956,7 +980,7 @@ client.on('messageCreate', async (message) => {
       message.reply('❌ Failed to update event embed.');
     }
   }
-  if (message.content.startsWith('!deleteevent')) {
+  if (message.content.startsWith(COMMAND_PREFIX + 'deleteevent')) {
     const args = message.content.split(' ');
     const eventId = parseInt(args[1]);
   
