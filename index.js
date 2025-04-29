@@ -461,20 +461,16 @@ client.on('messageCreate', async (message) => {
     }
     
     switch (session.stage) {
-      case 'input-post-channel':
-      // Try to parse a channel mention or ID
-      const channelMentionId = message.content.replace(/[<#>]/g, '').trim();
+      case 'awaiting-channel':
+      const mentionedChannel = message.mentions.channels.first();
 
-      try {
-        const targetChannel = await client.channels.fetch(channelMentionId);
-        session.postInChannelId = targetChannel.id;
-        session.stage = 1; // ✅ Now move to Title collection
-        message.reply(`✅ Got it! Events will be posted in **#${targetChannel.name}**.\n\nNow, what is the **event title**?`);
-      } catch (err) {
-        console.error('Channel fetch failed:', err.message);
-        message.reply('❌ Could not find that channel. Please type a valid channel ID or mention a channel (example: #events).');
+      if (!mentionedChannel) {
+        return message.reply('❌ Please mention a channel (like #events).');
       }
-      return;
+
+      session.postInChannelId = mentionedChannel.id;
+      session.stage = 1; // Ready for title
+      return message.reply(`✅ Got it! Events will be posted in **#${mentionedChannel.name}**.\n\nNow, what is the **event title**?`);
 
       case 'edit-title':
         if (message.content.toLowerCase() !== 'skip') {
@@ -779,7 +775,7 @@ client.on('messageCreate', async (message) => {
       const availableRoles = res.data;
   
       eventCreateSessions[message.author.id] = {
-        stage: 'input-post-channel', // CHANGED default stage!
+        stage: 'awaiting-channel',
         title: '',
         start: '',
         end: '',
@@ -792,8 +788,7 @@ client.on('messageCreate', async (message) => {
         timeoutId: null // 🔥 add this
       };
       
-  
-      message.reply('Let’s create a new event! What is the **event title**? (Type "cancel" at any time to cancel)');
+      message.reply('📢 Where should I post the event?\n\nMention a channel (like #events) or type a Channel ID.\n\n(Type "cancel" at any time to cancel)');
     } catch (err) {
       console.error('❌ Failed to fetch RSVP roles:', err.message);
       message.reply('❌ Could not start event creation. Try again later.');
