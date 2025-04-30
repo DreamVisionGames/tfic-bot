@@ -257,30 +257,30 @@ async function sendCustomEventEmbed(channel, event) {
     
 
     const files = [];
-    const rawImageUrl = event.eventImageUrl?.trim().replace(/[;]+$/, '');
+    const rawImageUrl = event.eventImageUrl?.trim();
+    const isValidHttpUrl = rawImageUrl &&
+      (rawImageUrl.startsWith('http://') || rawImageUrl.startsWith('https://'));
 
-    const cleanedImageUrl = rawImageUrl?.split('?')[0]?.split(';')[0]; // Strip query strings and any lingering ;
-    const validImageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+    const extensionMatch = rawImageUrl?.match(/\.(png|jpe?g|gif|webp)(\?|$)/i);
+    const isImageFile = !!extensionMatch;
 
-    const isValidUrl = cleanedImageUrl &&
-      (cleanedImageUrl.startsWith('http://') || cleanedImageUrl.startsWith('https://')) &&
-      validImageExtensions.some(ext => cleanedImageUrl.toLowerCase().endsWith(ext));
+    const isLocalhost = rawImageUrl?.includes('localhost');
 
-    if (isValidUrl && cleanedImageUrl.includes('localhost')) {
+    if (isValidHttpUrl && isImageFile && isLocalhost) {
+      // Attachment upload for localhost
       try {
-        const imageRes = await axiosLib.get(cleanedImageUrl, { responseType: 'arraybuffer' });
+        const imageRes = await axiosLib.get(rawImageUrl, { responseType: 'arraybuffer' });
         const imageBuffer = Buffer.from(imageRes.data, 'binary');
-        const imageName = path.basename(cleanedImageUrl);
-
+        const imageName = path.basename(rawImageUrl.split('?')[0]); // strip query params just for filename
+    
         files.push({ attachment: imageBuffer, name: imageName });
         embed.setImage(`attachment://${imageName}`);
       } catch (err) {
         console.warn('⚠️ Failed to attach image:', err.message);
       }
-    } else if (isValidUrl) {
-      embed.setImage(cleanedImageUrl);
-    }
-
+    } else if (isValidHttpUrl && isImageFile) {
+      embed.setImage(rawImageUrl); // ← don't clean this anymore
+    }   
     
     const message = await channel.send({
       embeds: [embed],
