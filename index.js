@@ -256,27 +256,30 @@ async function sendCustomEventEmbed(channel, event) {
     }
     
 
-  const files = [];
-  if (event.eventImageUrl?.startsWith('http://localhost')) {
-    try {
-      const imageRes = await axiosLib.get(event.eventImageUrl, { responseType: 'arraybuffer' });
-      const imageBuffer = Buffer.from(imageRes.data, 'binary');
-      const imageName = path.basename(event.eventImageUrl);
-
-      files.push({ attachment: imageBuffer, name: imageName });
-      embed.setImage(`attachment://${imageName}`);
-    } catch (err) {
-      console.warn('⚠️ Failed to attach image:', err.message);
+    const files = [];
+    const rawImageUrl = event.eventImageUrl?.trim().replace(/[;]+$/, ''); // 👈 Clean trailing semicolons
+    
+    if (rawImageUrl?.startsWith('http://localhost')) {
+      try {
+        const imageRes = await axiosLib.get(rawImageUrl, { responseType: 'arraybuffer' });
+        const imageBuffer = Buffer.from(imageRes.data, 'binary');
+        const imageName = path.basename(rawImageUrl);
+    
+        files.push({ attachment: imageBuffer, name: imageName });
+        embed.setImage(`attachment://${imageName}`);
+      } catch (err) {
+        console.warn('⚠️ Failed to attach image:', err.message);
+      }
+    } else if (rawImageUrl && (rawImageUrl.startsWith('http://') || rawImageUrl.startsWith('https://'))) {
+      embed.setImage(rawImageUrl);
     }
-  } else if (event.eventImageUrl && (event.eventImageUrl.startsWith('http://') || event.eventImageUrl.startsWith('https://'))) {
-    embed.setImage(event.eventImageUrl);
-  }  
-
-  const message = await channel.send({
-    embeds: [embed],
-    components: rows,
-    files
-  });  
+    
+    const message = await channel.send({
+      embeds: [embed],
+      components: rows,
+      files
+    });
+    
 
   const channelId = message.channel.id;
   const messageId = message.id;
