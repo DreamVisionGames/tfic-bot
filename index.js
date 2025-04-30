@@ -794,7 +794,7 @@ client.on('messageCreate', async (message) => {
     try {
       await axios.post('/api/events/rsvp', {
         eventId: parseInt(eventId),
-        username: message.author.username,
+        username: message.member?.nickname || message.author.username,
         role: role
       });
       message.reply(`✅ You RSVPed for event ${eventId} with role: ${role}`);
