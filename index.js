@@ -122,7 +122,13 @@ function buildEventEmbed(event) {
       }  
     );
 
-  if (event.eventImageUrl) embed.setImage(event.eventImageUrl);
+  if (event.eventImageUrl) {
+    const extOk = /\.(png|jpe?g|gif|webp)$/i.test(event.eventImageUrl);
+    if (extOk) {
+      const safeUrl = encodeURI(event.eventImageUrl.trim());
+      embed.setImage(safeUrl);
+    }
+  }      
 
   const rows = [];
   let currentRow = new ActionRowBuilder();
@@ -1147,8 +1153,7 @@ client.on('interactionCreate', async (interaction) => {
         const targetMessage = await targetChannel.messages.fetch(messageId);
         console.log("✅ Successfully fetched message:", targetMessage.id);
     
-        const { embeds, components } = buildEventEmbed(updatedEvent);
-        await targetMessage.edit({ embeds, components });
+        if (event.eventImageUrl) embed.setImage(event.eventImageUrl);
         console.log("✅ Message updated after RSVP");
       }
     
