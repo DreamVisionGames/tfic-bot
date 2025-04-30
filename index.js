@@ -285,13 +285,14 @@ async function sendCustomEventEmbed(channel, event) {
       const validExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
       if (validExts.includes(ext)) {
         try {
-          embed.setImage(cleanedUrl);
+          const encodedUrl = encodeURI(cleanedUrl); // Fixes spaces and special chars
+          embed.setImage(encodedUrl);
         } catch (err) {
           console.warn('❌ Failed to set image on embed:', err.message);
         }
       } else {
         console.warn(`⚠️ Rejected image URL (invalid extension):`, cleanedUrl);
-      }
+      }      
     }
       
     console.log("🖼️ Final embed image:", embed.data?.image?.url);
