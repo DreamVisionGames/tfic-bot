@@ -257,22 +257,30 @@ async function sendCustomEventEmbed(channel, event) {
     
 
     const files = [];
-    const rawImageUrl = event.eventImageUrl?.trim().replace(/[;]+$/, ''); // 👈 Clean trailing semicolons
-    
-    if (rawImageUrl?.startsWith('http://localhost')) {
+    const rawImageUrl = event.eventImageUrl?.trim().replace(/[;]+$/, '');
+
+    const cleanedImageUrl = rawImageUrl?.split('?')[0]?.split(';')[0]; // Strip query strings and any lingering ;
+    const validImageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+
+    const isValidUrl = cleanedImageUrl &&
+      (cleanedImageUrl.startsWith('http://') || cleanedImageUrl.startsWith('https://')) &&
+      validImageExtensions.some(ext => cleanedImageUrl.toLowerCase().endsWith(ext));
+
+    if (isValidUrl && cleanedImageUrl.includes('localhost')) {
       try {
-        const imageRes = await axiosLib.get(rawImageUrl, { responseType: 'arraybuffer' });
+        const imageRes = await axiosLib.get(cleanedImageUrl, { responseType: 'arraybuffer' });
         const imageBuffer = Buffer.from(imageRes.data, 'binary');
-        const imageName = path.basename(rawImageUrl);
-    
+        const imageName = path.basename(cleanedImageUrl);
+
         files.push({ attachment: imageBuffer, name: imageName });
         embed.setImage(`attachment://${imageName}`);
       } catch (err) {
         console.warn('⚠️ Failed to attach image:', err.message);
       }
-    } else if (rawImageUrl && (rawImageUrl.startsWith('http://') || rawImageUrl.startsWith('https://'))) {
-      embed.setImage(rawImageUrl);
+    } else if (isValidUrl) {
+      embed.setImage(cleanedImageUrl);
     }
+
     
     const message = await channel.send({
       embeds: [embed],
