@@ -1284,30 +1284,34 @@ app.post('/event-create', async (req, res) => {
   try {
     if (!client.isReady()) {
       console.warn("⚠️ Discord client not ready, skipping Discord post");
-      res.status(202).send("Bot not ready yet"); // ✅ Ends the request gracefully
-      return;
-    }    
+      return res.status(202).send("Bot not ready yet");
+    }
 
     const eventRes = await axios.get(`/api/events/public/${eventId}`, {
       headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
     });
     const event = eventRes.data;
 
-    const channelId = event.discordChannelId || process.env.DISCORD_DEFAULT_CHANNEL_ID;
+    const channelId = event.discordChannelId || process.env.EVENTS_CHANNEL_ID;
     if (!channelId) {
       console.warn("❌ No channelId available to post event");
       return res.status(400).send("No valid Discord channelId");
     }
-    
 
+    let channel;
     try {
+      channel = await client.channels.fetch(channelId); // ✅ moved up
       await sendCustomEventEmbed(channel, event);
       console.log(`✅ Posted full event "${event.title}" to Discord`);
     } catch (embedErr) {
       console.error('⚠️ Failed to send full event embed:', embedErr.message || embedErr);
       try {
-        await channel.send(`📅 New event created: **${event.title}**\nhttps://tfic-org-website-production.up.railway.app/events/${event.id}`);
-        console.log(`🛟 Sent fallback message for event ${event.title}`);
+        if (channel) {
+          await channel.send(`📅 New event created: **${event.title}**\nhttps://tfic-org-website-production.up.railway.app/events/${event.id}`);
+          console.log(`🛟 Sent fallback message for event ${event.title}`);
+        } else {
+          console.warn("⚠️ No channel available for fallback message.");
+        }
       } catch (fallbackErr) {
         console.error(`❌ Fallback message also failed:`, fallbackErr.message || fallbackErr);
       }
@@ -1319,6 +1323,7 @@ app.post('/event-create', async (req, res) => {
     res.status(500).send("Failed");
   }
 });
+
 
 // Webhook: Update existing event
 app.post('/event-update', async (req, res) => {
