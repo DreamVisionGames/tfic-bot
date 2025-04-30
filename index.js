@@ -279,9 +279,23 @@ async function sendCustomEventEmbed(channel, event) {
         console.warn('⚠️ Failed to attach image:', err.message);
       }
     } else if (isValidHttpUrl && isImageFile) {
-      embed.setImage(rawImageUrl); // ← don't clean this anymore
-    }   
+      const cleanedUrl = rawImageUrl.split('?')[0].split(';')[0]; // strip query + semicolons
+      const ext = path.extname(cleanedUrl).toLowerCase();
     
+      const validExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+      if (validExts.includes(ext)) {
+        try {
+          embed.setImage(cleanedUrl);
+        } catch (err) {
+          console.warn('❌ Failed to set image on embed:', err.message);
+        }
+      } else {
+        console.warn(`⚠️ Rejected image URL (invalid extension):`, cleanedUrl);
+      }
+    }
+      
+    console.log("🖼️ Final embed image:", embed.data?.image?.url);
+
     const message = await channel.send({
       embeds: [embed],
       components: rows,
