@@ -1153,7 +1153,8 @@ client.on('interactionCreate', async (interaction) => {
         const targetMessage = await targetChannel.messages.fetch(messageId);
         console.log("✅ Successfully fetched message:", targetMessage.id);
     
-        if (event.eventImageUrl) embed.setImage(event.eventImageUrl);
+        const { embeds, components } = buildEventEmbed(updatedEvent);
+        await targetMessage.edit({ embeds, components });
         console.log("✅ Message updated after RSVP");
       }
     
