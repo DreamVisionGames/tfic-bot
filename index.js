@@ -1079,7 +1079,7 @@ client.on('interactionCreate', async (interaction) => {
     
       await axios.post('/api/events/rsvp', {
         eventId,
-        username: interaction.user.username,
+        username: interaction.member?.nickname || interaction.user.username,
         discordId: interaction.user.id,
         avatarUrl: interaction.user.displayAvatarURL({ dynamic: true }),
         attending: true,
@@ -1167,7 +1167,7 @@ client.on('interactionCreate', async (interaction) => {
       // 🧨 Now cancel it, including the role
       await axios.post('/api/events/rsvp', {
         eventId,
-        username: interaction.user.username,
+        username: interaction.member?.nickname || interaction.user.username,
         attending: false,
         source: 'discord',
         discordId: interaction.user.id,
@@ -1387,4 +1387,3 @@ app.listen(3045, () => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
-
