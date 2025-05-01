@@ -8,6 +8,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const app = express();
 const { DateTime } = require('luxon');
+const TurndownService = require('turndown');
+const turndownService = new TurndownService();
 
 const TIMEZONES = {
   1: 'America/New_York',      // Eastern
@@ -82,9 +84,14 @@ const {
 } = require('discord.js');
 
 function buildEventEmbed(event) {
+  let cleanDescription = event.description || 'No description provided.';
+    if (/<[a-z][\s\S]*>/i.test(cleanDescription)) {
+      cleanDescription = turndownService.turndown(cleanDescription);
+    }
+
   const embed = new EmbedBuilder()
     .setTitle(`📅 ${event.title}`)
-    .setDescription(event.description || 'No description provided.')
+    .setDescription(cleanDescription)
     .setColor(0x5865f2)
     .addFields(
       {
@@ -180,9 +187,14 @@ const path = require('path');
 const axiosLib = require('axios'); // renamed to avoid conflict
 
 async function sendCustomEventEmbed(channel, event) {
+  let cleanDescription = event.description || 'No description provided.';
+    if (/<[a-z][\s\S]*>/i.test(cleanDescription)) {
+      cleanDescription = turndownService.turndown(cleanDescription);
+    }
+
   const embed = new EmbedBuilder()
     .setTitle(`📅 ${event.title}`)
-    .setDescription(event.description || 'No description provided.')
+    .setDescription(cleanDescription)
     .setColor(0x5865f2)
     .addFields(
       {
