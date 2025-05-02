@@ -1199,7 +1199,13 @@ client.on('interactionCreate', async (interaction) => {
         headers: { Authorization: `Bearer ${BOT_API_TOKEN}` }
       });
       const eventData = eventRes.data;
-      const userRsvp = eventData.rsvps?.find(r => r.discordId === interaction.user.id && r.attending);
+      const userRsvp = eventData.rsvps?.find(r =>
+        r.attending &&
+        (
+          (r.discordId && r.discordId === interaction.user.id) ||
+          (r.username?.toLowerCase() === interaction.user.username.toLowerCase())
+        )
+      );    
 
       if (!userRsvp) {
         return await interaction.reply({
